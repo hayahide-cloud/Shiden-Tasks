@@ -27,7 +27,7 @@
     --grid: #2a2140; --border: rgba(168,120,255,0.16);
     --accent: #a06bff; --accent-hi: #c084fc; --accent-deep: #7c3aed;
     --good: #34d399; --bad: #f87171; --warn: #fbbf24;
-    --side-w: 300px; --detail-w: 360px; --appbar-h: 48px;
+    --side-w: 250px; --detail-w: 360px; --appbar-h: 48px;
   }
   * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html { color-scheme: dark; height: 100%; }
@@ -97,8 +97,7 @@
   .nav li .cnt { font-size: 12px; color: var(--muted); }
   .nav .sep { height: 1px; background: var(--grid); margin: 8px 8px; }
   /* 今日の時間配分 */
-  .nav { flex: none; }
-  .today { flex: 1; min-height: 0; display: flex; flex-direction: column; border-top: 1px solid var(--grid); padding: 10px 10px 8px; }
+  .today { display: flex; flex-direction: column; max-width: 760px; }
   .today .th { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
   .today .tt { font-size: 13px; font-weight: 700; color: #fff; flex: 1; }
   .ibtn.small { height: 26px; font-size: 11.5px; padding: 0 8px; background: var(--surface-2); }
@@ -110,17 +109,19 @@
   .texcl { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); margin-bottom: 8px; }
   .texcl input { width: 56px; font-size: 13px; background: var(--surface-2); color: var(--ink); border: 1px solid var(--grid); border-radius: 4px; padding: 3px 6px; text-align: right; }
   .tl { list-style: none; flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 3px; }
-  .tl li { display: grid; grid-template-columns: 44px 1fr auto; gap: 6px; align-items: center; padding: 6px 8px; border-radius: 6px; background: var(--row); cursor: pointer; font-size: 12.5px; }
+  .tl li { display: grid; grid-template-columns: 56px 1fr auto; gap: 10px; align-items: center; padding: 10px 12px; border-radius: 6px; background: var(--row); cursor: pointer; font-size: 15px; }
   .tl li .tm { color: var(--accent-hi); font-variant-numeric: tabular-nums; font-weight: 600; }
   .tl li .nm { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); }
-  .tl li .du { color: var(--muted); font-size: 11.5px; white-space: nowrap; }
+  .tl li .du { color: var(--muted); font-size: 13px; white-space: nowrap; }
   .tl li.over { border: 1px solid rgba(248,113,113,0.5); } .tl li.over .tm { color: var(--bad); }
   .tl li.done { opacity: .45; } .tl li.done .nm { text-decoration: line-through; }
   .tl li.noest .du { color: var(--warn); }
-  .tl .tend { grid-template-columns: 44px 1fr; background: transparent; color: var(--muted); cursor: default; font-size: 11.5px; }
+  .tl .tend { grid-template-columns: 56px 1fr; background: transparent; color: var(--muted); cursor: default; font-size: 13px; }
+  .tl li .tm { font-size: 15px; }
+  .today .tt { font-size: 15px; } .tsum { font-size: 13.5px; } .tsum .bar { height: 8px; } .texcl { font-size: 13px; }
   .tstat:empty { display: none; }
   .tstat.err { color: var(--bad); }
-  @media (max-width: 900px) { .today { display: none; } }
+
   .newlist-wrap { flex: none; border-top: 1px solid var(--grid); padding: 6px; }
   .newlist-btn { width: 100%; display: flex; align-items: center; gap: 12px; padding: 9px 12px; border: none; background: transparent; color: var(--accent-hi); font-size: 14px; cursor: pointer; border-radius: 4px; text-align: left; }
   .newlist { display: none; gap: 6px; padding: 4px 6px 6px; }
@@ -466,14 +467,7 @@
     <aside class="side" id="side">
       <div class="ptr" id="ptr-side"></div>
       <ul class="nav" id="nav"></ul>
-      <!-- 今日の時間配分（タイムライン） -->
-      <section class="today" id="today">
-        <div class="th"><span class="tt">⏱ 今日の時間配分</span><button class="ibtn small" id="today-est" type="button" title="所要時間が未設定のタスクをAIで見積もる">🧩 AIで見積もる</button></div>
-        <div class="tsum" id="today-sum"></div>
-        <div class="texcl"><label>除外 <input type="number" id="today-excl" min="0" step="15" placeholder="0"> 分</label><span class="hint">会議など。今日だけ有効</span></div>
-        <ol class="tl" id="today-tl"></ol>
-        <div class="hint tstat" id="today-status"></div>
-      </section>
+
       <div class="newlist-wrap" hidden>
         <button class="newlist-btn" id="side-toggle" type="button"><span>＋</span>新しいリスト</button>
         <div class="newlist"><input id="newlist" placeholder="リスト名" enterkeyhint="done"><button class="linkbtn" id="newlist-add" type="button">作成</button></div>
@@ -537,6 +531,7 @@ const KEY = "shiden_tasks_v1", DEL_KEY = "shiden_tasks_deleted_v1", CFG_KEY = "s
 
 /* ---- バージョンと更新履歴（公開版が反映されているかの確認用。変更のたびに先頭へ追記する） ---- */
 const CHANGELOG = [
+  ["2026-09-30.100", "「⏱ 今日の時間配分」をサイドバーの項目（独立ページ）に変更。スマホも切替メニューから開ける"],
   ["2026-09-30.99", "左に「⏱ 今日の時間配分」タイムライン（対象は期限が今日以前 or 重要度3以上を自動選定、AIで所要時間を一括見積もり、始業・終業・休憩・除外から使える時間を計算、開始時刻付きで積み上げ）"],
   ["2026-09-30.98", "「完了」セクションは既定で閉じる"],
   ["2026-09-30.97", "重要度バーに「重要度 3」のラベルを添える（詳細では「重要」「最重要」などの言葉も）"],
@@ -640,8 +635,8 @@ const CHANGELOG = [
 const VERSION = CHANGELOG[0][0];
 document.getElementById("ver").textContent = "v" + VERSION;
 document.getElementById("changelog").innerHTML = CHANGELOG.map(([v, m], i) => `<li class="${i === 0 ? "cur" : ""}"><span class="v">${v}</span><span>${m}</span></li>`).join("");
-const SMART = { all: "タスク", matrix: "アイゼンハワーマトリクス", archive: "アーカイブ" }; // マトリクス＝アイゼンハワー（重要=重要度3以上／緊急=期限が超過＋3営業日以内） // アーカイブ＝前日以前に完了したタスク（当日完了分は「タスク」の完了欄に残る）
-const SMART_ICO = { all: "🏠", matrix: "⊞", archive: "🗄" };
+const SMART = { all: "タスク", today: "今日の時間配分", matrix: "アイゼンハワーマトリクス", archive: "アーカイブ" }; // マトリクス＝アイゼンハワー（重要=重要度3以上／緊急=期限が超過＋3営業日以内） // アーカイブ＝前日以前に完了したタスク（当日完了分は「タスク」の完了欄に残る）
+const SMART_ICO = { all: "🏠", today: "⏱", matrix: "⊞", archive: "🗄" };
 const PRIO_WORD = ["未設定", "低", "やや低", "重要", "高", "最重要"];
 // 重要度バー＋ラベル。lg（詳細）は言葉も添える。一覧は「重要度 3」だけ
 function prioBars(v, lg) {
@@ -736,6 +731,7 @@ function fmtHM(min) { min = ((min % 1440) + 1440) % 1440; return String(Math.flo
 const EXCL_KEY = "shiden_tasks_today_excl";
 function todayExcl() { try { const o = JSON.parse(localStorage.getItem(EXCL_KEY)) || {}; return o.d === todayStr() ? (o.m || 0) : 0; } catch (e) { return 0; } }
 function renderToday() {
+  if (!document.getElementById("today-tl")) return; // 今日ページを開いているときだけ描画
   const c = getCfg(); const wstart = hm(c.wstart || "09:00"), wend = hm(c.wend || "18:00"), wbreak = c.wbreak == null ? 60 : c.wbreak;
   const excl = todayExcl(); document.getElementById("today-excl").value = excl || "";
   const budget = Math.max(0, wend - wstart - wbreak - excl);
@@ -755,8 +751,7 @@ function renderToday() {
   document.getElementById("today-tl").innerHTML = html;
   document.getElementById("today-est").hidden = !getCfg().openai || !open.some(t => !t.est);
 }
-document.getElementById("today-tl").addEventListener("click", e => { const li = e.target.closest("li[data-id]"); if (!li) return; selectedId = li.dataset.id; if (!isMobile()) panes.detail = true; render(); });
-document.getElementById("today-excl").addEventListener("change", e => { localStorage.setItem(EXCL_KEY, JSON.stringify({ d: todayStr(), m: Number(e.target.value) || 0 })); renderToday(); });
+document.getElementById("tasks").addEventListener("change", e => { if (e.target.id === "today-excl") { localStorage.setItem(EXCL_KEY, JSON.stringify({ d: todayStr(), m: Number(e.target.value) || 0 })); renderToday(); } });
 const SYS_EST = `あなたはタスクの所要時間を見積もるアシスタントです。各タスクについて、集中して取り組んだ場合の現実的な所要時間を分単位（5分刻み、5〜240）で見積もってください。
 - タスク名・タグ（ツール／種別）・ステップ・メモを手がかりにする。返信や確認は短め、成果物作成や検討は長め
 - 出力は次のJSONのみ
@@ -772,7 +767,7 @@ async function aiEstimateToday() {
     save(db); scheduleSync(); render(); st.textContent = `${n}件を見積もりました（詳細で修正できます）`; setTimeout(() => { if (st.textContent.includes("見積もりました")) st.textContent = ""; }, 5000);
   } catch (e) { if (e.name !== "AbortError") { st.classList.add("err"); st.textContent = "失敗: " + e.message; } }
 }
-document.getElementById("today-est").addEventListener("click", aiEstimateToday);
+
 function isImportant(t) { return (t.priority || 0) >= 3; } // 重要＝重要度3以上
 // 緊急の期限: 今日から数えて3営業日目（土日は飛ばす）。例: 木曜なら 木・金・月 → 月曜まで緊急。土曜なら 月・火・水
 function urgentLimit() {
@@ -823,6 +818,7 @@ function visibleTasks() {
   return db.tasks.filter(t => {
     if (view === "archive") return isArchived(t);
     if (view === "matrix") return !t.done && !(t.tags || []).includes("プライベート");
+    if (view === "today") return !isArchived(t) && isTodayTask(t);
     return !isArchived(t); // 前日以前に完了したものはアーカイブへ
   });
 }
@@ -834,7 +830,7 @@ function render() { migrateTags(); renderNav(); renderList(); renderDetail(); re
 let mobileScreen = "home"; // スマホ: "home"=リスト一覧 / "list"=タスク一覧
 
 function renderNav() {
-  const cnt = k => { if (k === "archive" || k === "matrix") return 0; const v = view; view = k; const n = visibleTasks().filter(t => !t.done && !(t.tags || []).includes("プライベート")).length; view = v; return n; };
+  const cnt = k => { if (k !== "all") return 0; const v = view; view = k; const n = visibleTasks().filter(t => !t.done && !(t.tags || []).includes("プライベート")).length; view = v; return n; };
   const item = (k, ico, name) => `<li class="${view === k ? "active" : ""}" data-view="${k}"><span class="ico">${ico}</span><span class="nm">${esc(name)}</span><span class="cnt">${cnt(k) || ""}</span></li>`;
   let html = Object.keys(SMART).map(k => item(k, SMART_ICO[k], SMART[k])).join("");
   // リスト分けは廃止（2026-09-30）。自作リストは表示しない（データは残るが、タスクはすべて「タスク」に出る）
@@ -866,7 +862,7 @@ function renderList() {
   // フィルタなしの既定表示ではプライベートを隠す（何かフィルタを掛けたときだけ登場する）
   const hiddenPriv = tagFilter ? 0 : ts.filter(t => isPriv(t) && !t.done).length;
   if (!tagFilter) ts = ts.filter(t => !isPriv(t));
-  document.querySelector(".add").hidden = view === "archive"; document.getElementById("list-date").textContent = view === "archive" ? "前日以前に完了したタスク" : document.getElementById("list-date").textContent;
+  document.querySelector(".add").hidden = view === "archive" || view === "today"; document.getElementById("list-date").textContent = view === "archive" ? "前日以前に完了したタスク" : document.getElementById("list-date").textContent;
   const open = sortOpen(ts.filter(t => !t.done));
   document.getElementById("sort-lbl").textContent = SORT_LBL[sortCfg.key] + "・" + DIR_LBL[sortCfg.key][sortCfg.dir === "asc" ? 1 : 0];
   document.querySelector("#sort-pop [data-dir=desc]").textContent = DIR_LBL[sortCfg.key][0];
@@ -893,6 +889,18 @@ function renderList() {
       ${prioBars(t.priority)}
     </li>`;
   };
+  if (view === "today") {
+    tagFilter = null; document.getElementById("tagbar").hidden = true; document.getElementById("sort-btn").hidden = true;
+    document.getElementById("tasks").innerHTML = `<section class="today" id="today">
+        <div class="th"><span class="tt">今日やるタスクを、現在時刻から順に積み上げています</span><button class="ibtn small" id="today-est" type="button" title="所要時間が未設定のタスクをAIで見積もる">🧩 AIで見積もる</button></div>
+        <div class="tsum" id="today-sum"></div>
+        <div class="texcl"><label>除外 <input type="number" id="today-excl" min="0" step="15" placeholder="0"> 分</label><span class="hint">会議など、今日だけ差し引く時間</span></div>
+        <ol class="tl" id="today-tl"></ol>
+        <div class="hint tstat" id="today-status"></div>
+        <div class="hint" style="margin-top:10px">対象: 期限が今日以前 または 重要度3以上（プライベート除く）。詳細の「今日やる／今日は外す」で調整。所要時間は詳細の ⏱ で修正できます。始業・終業・休憩は ⚙️ 設定。</div>
+      </section>`;
+    renderToday(); return;
+  }
   if (view === "matrix") {
     tagFilter = null; // マトリクスでは絞り込みを使わない
     document.getElementById("tagbar").hidden = true; document.getElementById("sort-btn").hidden = true;
@@ -1220,6 +1228,8 @@ document.getElementById("tagbar").addEventListener("click", e => {
   const g = c.dataset.tag; tagFilter = (!g || tagFilter === g) ? null : g; render();
 });
 document.getElementById("tasks").addEventListener("click", e => {
+  if (e.target.closest("#today-est")) { aiEstimateToday(); return; }
+  const tli = e.target.closest("#today-tl li[data-id]"); if (tli) { selectedId = tli.dataset.id; if (!isMobile()) panes.detail = true; render(); return; }
   if (e.target.closest("#done-head")) { doneOpen = !doneOpen; render(); return; }
   const li = e.target.closest("li.task"); if (!li) return;
   const t = task(li.dataset.id); if (!t) return;
