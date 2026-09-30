@@ -188,7 +188,7 @@
   .quad ul { list-style: none; display: flex; flex-direction: column; gap: 6px; }
   .quad .task.card { min-height: 0; padding: 8px 10px; background: var(--row); }
   .quad .task.card .title { font-size: 14px; }
-  .task .prio { pointer-events: none; cursor: default; } /* 一覧のバーは表示のみ（行タップで詳細へ）。優先度は詳細で変える */
+  .task .prio { pointer-events: none; cursor: default; } /* 一覧のバーは表示のみ（行タップで詳細へ）。重要度は詳細で変える */
   .quad .task.card .prio { transform: scale(.85); transform-origin: right center; }
   .quad .empty { padding: 18px 4px; font-size: 12px; }
   @media (max-width: 900px) { .matrix { grid-template-columns: 1fr; } .quad { min-height: 0; } }
@@ -438,8 +438,8 @@
           <div class="popover left" id="view-pop" hidden></div></div>
         <div class="menu-wrap"><button class="ibtn" id="sort-btn" type="button" title="並べ替え">⇅ <span id="sort-lbl"></span></button>
           <div class="popover" id="sort-pop" hidden>
-            <button data-sort="priority" type="button">優先度（同じなら期限が近い順）</button>
-            <button data-sort="due" type="button">期限（同じなら優先度が高い順）</button>
+            <button data-sort="priority" type="button">重要度（同じなら期限が近い順）</button>
+            <button data-sort="due" type="button">期限（同じなら重要度が高い順）</button>
             <div style="height:1px;background:var(--grid);margin:4px 0"></div>
             <button data-dir="desc" type="button">降順 ↓</button>
             <button data-dir="asc" type="button">昇順 ↑</button>
@@ -487,6 +487,7 @@ const KEY = "shiden_tasks_v1", DEL_KEY = "shiden_tasks_deleted_v1", CFG_KEY = "s
 
 /* ---- バージョンと更新履歴（公開版が反映されているかの確認用。変更のたびに先頭へ追記する） ---- */
 const CHANGELOG = [
+  ["2026-09-30.96", "表記を「優先度」から「重要度」に統一"],
   ["2026-09-30.95", "一覧の優先度バーは表示のみに（行タップで詳細を開いて変更）"],
   ["2026-09-30.94", "スマホ: タスク追加後に詳細を開く。優先度バーを大きく（一覧36px・詳細44px）"],
   ["2026-09-30.93", "区分に「事務局長」を追加"],
@@ -586,12 +587,12 @@ const CHANGELOG = [
 const VERSION = CHANGELOG[0][0];
 document.getElementById("ver").textContent = "v" + VERSION;
 document.getElementById("changelog").innerHTML = CHANGELOG.map(([v, m], i) => `<li class="${i === 0 ? "cur" : ""}"><span class="v">${v}</span><span>${m}</span></li>`).join("");
-const SMART = { all: "タスク", matrix: "アイゼンハワーマトリクス", archive: "アーカイブ" }; // マトリクス＝アイゼンハワー（重要=優先度3以上／緊急=期限が超過＋3営業日以内） // アーカイブ＝前日以前に完了したタスク（当日完了分は「タスク」の完了欄に残る）
+const SMART = { all: "タスク", matrix: "アイゼンハワーマトリクス", archive: "アーカイブ" }; // マトリクス＝アイゼンハワー（重要=重要度3以上／緊急=期限が超過＋3営業日以内） // アーカイブ＝前日以前に完了したタスク（当日完了分は「タスク」の完了欄に残る）
 const SMART_ICO = { all: "🏠", matrix: "⊞", archive: "🗄" };
-function prioBars(v, lg) { return `<span class="prio ${lg ? "lg" : ""}" data-act="prio" data-v="${v || 0}" title="優先度 ${v || 0}/5（バーをクリックで設定）">${[1, 2, 3, 4, 5].map(p => `<i data-p="${p}"></i>`).join("")}</span>`; }
+function prioBars(v, lg) { return `<span class="prio ${lg ? "lg" : ""}" data-act="prio" data-v="${v || 0}" title="重要度 ${v || 0}/5（バーをクリックで設定）">${[1, 2, 3, 4, 5].map(p => `<i data-p="${p}"></i>`).join("")}</span>`; }
 const TAG_CH = ["Teams", "Outlook", "LINE", "電話", "Excel", "Word", "PP", "Web", "その他ツール"];  // どこの案件か／何で作るか（PP＝PowerPoint）
 const TAG_TY = ["確認", "対応", "返信", "新規文章作成", "成果物作成", "手配", "購入", "調査", "検討", "その他種別"];  // 表示順
-const TAG_EX = ["石油部会 執行部", "事務局長", "プライベート"];  // 第3グループ（桃色）。区分。プライベートだけ特別扱い（既定非表示・ツール/優先度不要・期限なし既定）  // どんな仕事か（対応＝アンケート回答・申請など、考えずにサッと片付ける軽い作業）
+const TAG_EX = ["石油部会 執行部", "事務局長", "プライベート"];  // 第3グループ（桃色）。区分。プライベートだけ特別扱い（既定非表示・ツール/重要度不要・期限なし既定）  // どんな仕事か（対応＝アンケート回答・申請など、考えずにサッと片付ける軽い作業）
 const TAG_RENAME = { "実施": "対応", "文章": "新規文章作成", "文章作成": "新規文章作成", "作成": "成果物作成" }; // 旧名称の移行（読み込み時に置換）
 function tagClass(tag) { return TAG_CH.includes(tag) ? "ch" : TAG_TY.includes(tag) ? "ty" : TAG_EX.includes(tag) ? "ex" : "fr"; }
 function tagChip(tag, on) { return `<span class="tag ${tagClass(tag)} ${on ? "on" : ""}" data-tag="${esc(tag)}">${esc(tag)}</span>`; }
@@ -600,9 +601,9 @@ let tagFilter = null; // 一覧のタグ絞り込み（null=すべて）
 const SORT_KEY = "shiden_tasks_sort";
 let sortCfg = (() => { try { return Object.assign({ key: "priority", dir: "desc" }, JSON.parse(localStorage.getItem(SORT_KEY)) || {}); } catch (e) { return { key: "priority", dir: "desc" }; } })();
 // dir: "desc"＝各項目の「上に来てほしい順」（優先度=高い順／期限=近い順／追加日=新しい順）、"asc"＝その逆
-const SORT_LBL = { priority: "優先度", due: "期限" };
+const SORT_LBL = { priority: "重要度", due: "期限" };
 const DIR_LBL = { priority: ["高い順", "低い順"], due: ["近い順", "遠い順"] };
-if (!SORT_LBL[sortCfg.key]) sortCfg.key = "priority"; // 旧「追加日」設定は優先度へ
+if (!SORT_LBL[sortCfg.key]) sortCfg.key = "priority"; // 旧「追加日」設定は重要度へ
 function sortOpen(list) {
   const dir = sortCfg.dir === "asc" ? 1 : -1;
   const cmp = {
@@ -622,7 +623,7 @@ function setDue(t, due, noDue) {
 }
 function overdueCount(t) { return (t.overdue || []).length; }
 function isOverdue(t) { return !!t.due && !t.done && t.due < todayStr(); } // 期限超過（再設定するまで赤字・不完全）
-function tagIncomplete(t) { const g = t.tags || []; const priv = g.includes("プライベート"); return (!priv && !g.some(x => TAG_CH.includes(x))) || !g.some(x => TAG_TY.includes(x)) || (!priv && !(t.priority > 0)) || !(t.due || t.noDue) || isOverdue(t); } // プライベートはツール・優先度なしでもよい（種別は必要）
+function tagIncomplete(t) { const g = t.tags || []; const priv = g.includes("プライベート"); return (!priv && !g.some(x => TAG_CH.includes(x))) || !g.some(x => TAG_TY.includes(x)) || (!priv && !(t.priority > 0)) || !(t.due || t.noDue) || isOverdue(t); } // プライベートはツール・重要度なしでもよい（種別は必要）
 const INCOMPLETE = "__incomplete", TODAY = "__today", HIGH = "__high"; // フィルタの特別値（不完全／今日締め切り＝期限が今日以前の未完了）
 function sortTags(tags) {
   const rank = g => TAG_CH.includes(g) ? TAG_CH.indexOf(g) : TAG_TY.includes(g) ? 100 + TAG_TY.indexOf(g) : TAG_EX.includes(g) ? 150 + TAG_EX.indexOf(g) : 200;
@@ -657,7 +658,7 @@ function fmtRemind(r) {
   return mo + "/" + dd + " " + time;
 }
 function dateOf(ms) { const d = new Date(ms); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
-function isImportant(t) { return (t.priority || 0) >= 3; } // 重要＝優先度3以上
+function isImportant(t) { return (t.priority || 0) >= 3; } // 重要＝重要度3以上
 // 緊急の期限: 今日から数えて3営業日目（土日は飛ばす）。例: 木曜なら 木・金・月 → 月曜まで緊急。土曜なら 月・火・水
 function urgentLimit() {
   const d = new Date(); let n = 0;
@@ -672,7 +673,7 @@ const isMobile = () => window.innerWidth <= 900;
 let db = load();
 // 旧タグ名の移行（実施→対応）。同期で戻ってきたデータにも適用するため render 前に毎回通す
 function migrateTags() { let ch = false; db.tasks.forEach(t => {
-    if (t.priority == null) { t.priority = t.important ? 4 : 0; delete t.important; ch = true; } // 旧 ★重要 → 優先度4
+    if (t.priority == null) { t.priority = t.important ? 4 : 0; delete t.important; ch = true; } // 旧 ★重要 → 重要度4
     if (!t.tags) return; const n = t.tags.map(g => TAG_RENAME[g] || g); if (n.join() !== t.tags.join()) { t.tags = [...new Set(n)]; t.mt = now(); ch = true; } }); if (ch) { save(db); scheduleSync(); } }
 migrateTags();
 let view = "all";             // 表示中のリスト（スマート or リストid）
@@ -742,7 +743,7 @@ function renderList() {
   const nInc = all.filter(t => !t.done && tagIncomplete(t)).length;
   const nToday = all.filter(t => !t.done && t.due && t.due <= todayStr()).length;
   const nHigh = all.filter(t => !t.done && isImportant(t)).length;
-  const incChip = `<span class="tag warn ${tagFilter === INCOMPLETE ? "on" : ""} ${nInc ? "" : "zero"}" data-tag="${INCOMPLETE}" title="ツール・種別・優先度・期限のどれかが未設定、または期限超過のタスク（プライベートはツール・優先度不要）">⚠ 不完全${nInc ? " " + nInc : ""}</span><span class="tag today ${tagFilter === TODAY ? "on" : ""} ${nToday ? "" : "zero"}" data-tag="${TODAY}" title="期限が今日のタスク（超過分も含む）">📅 今日締切${nToday ? " " + nToday : ""}</span><span class="tag high ${tagFilter === HIGH ? "on" : ""} ${nHigh ? "" : "zero"}" data-tag="${HIGH}" title="優先度3以上のタスク">📶 優先度高${nHigh ? " " + nHigh : ""}</span><span class="sep"></span>`;
+  const incChip = `<span class="tag warn ${tagFilter === INCOMPLETE ? "on" : ""} ${nInc ? "" : "zero"}" data-tag="${INCOMPLETE}" title="ツール・種別・重要度・期限のどれかが未設定、または期限超過のタスク（プライベートはツール・重要度不要）">⚠ 不完全${nInc ? " " + nInc : ""}</span><span class="tag today ${tagFilter === TODAY ? "on" : ""} ${nToday ? "" : "zero"}" data-tag="${TODAY}" title="期限が今日のタスク（超過分も含む）">📅 今日締切${nToday ? " " + nToday : ""}</span><span class="tag high ${tagFilter === HIGH ? "on" : ""} ${nHigh ? "" : "zero"}" data-tag="${HIGH}" title="重要度3以上のタスク">📶 重要度高${nHigh ? " " + nHigh : ""}</span><span class="sep"></span>`;
   document.getElementById("tagbar").hidden = view === "archive";
   document.getElementById("tagbar").innerHTML = incChip + TAG_CH.map(chipOf).join("") + `<span class="sep"></span>` + TAG_TY.map(chipOf).join("") + `<span class="sep"></span>` + TAG_EX.map(chipOf).join("") + (free.length ? `<span class="sep"></span>` + free.map(chipOf).join("") : "") + (tagFilter ? `<button class="clear" data-tag="">× 絞り込み解除</button>` : "");
   const isPriv = t => (t.tags || []).includes("プライベート");
@@ -768,7 +769,7 @@ function renderList() {
     if (t.steps.length) { const nx = t.steps.find(x => !x.done); meta.push(`<span>${t.steps.filter(s => s.done).length}/${t.steps.length}${nx && !t.done ? " → " + esc(nx.title) : ""}</span>`); }
     if (t.note) meta.push(`<span>📝</span>`);
     sortTags(t.tags).forEach(g => meta.push(tagChip(g)));
-    if (!t.done && tagIncomplete(t)) meta.push(`<span class="tag warn" title="ツール・種別・優先度・期限を設定してください（期限超過も含む）">⚠</span>`);
+    if (!t.done && tagIncomplete(t)) meta.push(`<span class="tag warn" title="ツール・種別・重要度・期限を設定してください（期限超過も含む）">⚠</span>`);
     if (t.ai && t.ai.draft) meta.push(`<span class="aim">⚡ 下書きあり</span>`);
     else if (t.ai && t.ai.questions && !t.ai.draft) meta.push(`<span class="aim">⚡ 回答待ち</span>`);
     return `<li class="task ${t.done ? "done" : ""} ${selectedId === t.id ? "sel" : ""} ${isOverdue(t) || overdueCount(t) ? "overdue" : ""}" data-id="${t.id}">
@@ -780,7 +781,7 @@ function renderList() {
   if (view === "matrix") {
     tagFilter = null; // マトリクスでは絞り込みを使わない
     document.getElementById("tagbar").hidden = true; document.getElementById("sort-btn").hidden = true;
-    document.getElementById("list-date").textContent = `重要＝優先度3以上 ／ 緊急＝期限が ${fmtDue(urgentLimit())} まで（超過＋3営業日）`;
+    document.getElementById("list-date").textContent = `重要＝重要度3以上 ／ 緊急＝期限が ${fmtDue(urgentLimit())} まで（超過＋3営業日）`;
     const Q = [["q1", "🔥 緊急 × 重要", "今すぐやる"], ["q2", "🎯 重要・緊急でない", "予定を決めてやる"], ["q3", "⚡ 緊急・重要でない", "さっと片付ける／任せる"], ["q4", "🌫 どちらでもない", "減らす・やめる"]];
     const card = t => row(t).replace('class="task ', 'class="task card ');
     document.getElementById("tasks").innerHTML = `<div class="matrix">${Q.map(([q, h, sub]) => { const items = sortOpen(open.filter(t => quadrantOf(t) === q)); return `<div class="quad ${q}"><h3>${h}<span class="sub">${sub}</span><span class="n">${items.length}</span></h3><ul>${items.length ? items.map(card).join("") : `<div class="empty">なし</div>`}</ul></div>`; }).join("")}</div>`;
@@ -1113,7 +1114,7 @@ function submitAdd() {
   const t = addTask(v, null, { due: dueIn.value, remind: remIn.value }); if (addNoDue && !dueIn.value) t.noDue = true; if (addPrivate) t.tags = ["プライベート"]; if (addNoDue || addPrivate) save(db); input.value = "";
   dueIn.value = ""; remIn.value = ""; addNoDue = false; addPrivate = false; renderAddTools();
   // 追加時は詳細を開かず一覧に足すだけ（PC・スマホ共通）。AIの問い返しは裏で走り、行に「⚡ 回答待ち」が付く
-  selectedId = t.id; if (!isMobile()) panes.detail = true; // 追加直後に詳細を開き、タグ・優先度・期限をその場で付ける（PC・スマホ共通）
+  selectedId = t.id; if (!isMobile()) panes.detail = true; // 追加直後に詳細を開き、タグ・重要度・期限をその場で付ける（PC・スマホ共通）
   render();
   // AI補助は自動では起動しない。タグ付け等を済ませてから詳細の「AIに相談する」で発動する
 }
