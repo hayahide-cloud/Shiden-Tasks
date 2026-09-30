@@ -16,7 +16,7 @@
   /* ================================================================
      Shiden Tasks — AI補助タスク管理（Microsoft To Do 風・GitHub同期）
      秘密情報は一切含まない。実データは Private の Hayahide-Log に保存。
-     GitHubトークン・Claude APIキーは各端末のブラウザ内(localStorage)のみ。
+     GitHubトークン・OpenAI APIキーは各端末のブラウザ内(localStorage)のみ。
      テーマ・ヘッダー・同期の作りは Shiden LifeLogger / Expense と統一。
      ================================================================ */
   :root {
@@ -199,7 +199,7 @@
     </span>
   </div>
 
-  <!-- 設定（GitHub同期・Claude API） -->
+  <!-- 設定（GitHub同期・OpenAI API） -->
   <div class="card cfg" id="cfg-panel">
     <label>■ GitHub 同期 — Private リポジトリにタスクを保存します（各端末で1回設定）。Fine-grained トークンは対象リポジトリのみ・Contents読み書きで発行してください。</label>
     <div class="cfg-grid">
@@ -209,13 +209,14 @@
       <input id="cfg-branch" placeholder="branch（例: main）" value="main" autocapitalize="off" autocorrect="off">
       <input id="cfg-token" type="password" placeholder="Fine-grained token（github_pat_...）" autocapitalize="off" autocorrect="off">
     </div>
-    <label>■ Claude API — AI補助（問い返し・下書き）に使います。キーはこの端末のブラウザ内にのみ保存されます。</label>
+    <label>■ OpenAI API — AI補助（問い返し・下書き）に使います。キーはこの端末のブラウザ内にのみ保存されます。</label>
     <div class="cfg-grid">
-      <input id="cfg-anthropic" type="password" placeholder="Anthropic API key（sk-ant-...）" autocapitalize="off" autocorrect="off">
+      <input id="cfg-openai" type="password" placeholder="OpenAI API key（sk-...）" autocapitalize="off" autocorrect="off">
       <select id="cfg-model">
-        <option value="claude-opus-5">claude-opus-5（既定・高品質）</option>
-        <option value="claude-sonnet-5">claude-sonnet-5（速い・安い）</option>
-        <option value="claude-haiku-4-5">claude-haiku-4-5（最安）</option>
+        <option value="gpt-5-mini">gpt-5-mini（既定・速い・安い）</option>
+        <option value="gpt-5">gpt-5（高品質）</option>
+        <option value="gpt-4.1-mini">gpt-4.1-mini</option>
+        <option value="gpt-4o-mini">gpt-4o-mini</option>
       </select>
     </div>
     <div class="hint">仕事のメール内容を入力することは社外AIへの業務情報送信にあたります。会社の生成AI利用規程に従い、機密・個人情報は入れない運用にしてください。</div>
@@ -361,7 +362,7 @@ function renderDetail() {
 }
 
 /* ================================================================
-   AI補助（Claude API を端末から直接呼ぶ）
+   AI補助（OpenAI API を端末から直接呼ぶ）
    1) 意図判定＋不足情報の問い返し（質問リスト）
    2) 回答を受けて下書き生成（メール／Teams／会議依頼／作業手順）
    ================================================================ */
@@ -371,8 +372,8 @@ function renderAi(t) {
   const a = t.ai || {};
   const cfg = getCfg();
   let body = "";
-  if (!cfg.anthropic) {
-    body = `<div class="status">「⚙️ 設定」で Anthropic API キーを入れると、AIがこのタスクの内容を確認して下書きを作ります。</div>`;
+  if (!cfg.openai) {
+    body = `<div class="status">「⚙️ 設定」で OpenAI API キーを入れると、AIがこのタスクの内容を確認して下書きを作ります。</div>`;
   } else if (!a.questions) {
     body = `<div class="actions"><button class="btn" data-ai="ask">⚡ AIに相談する</button></div><div class="status" id="ai-status"></div>`;
   } else {
@@ -395,29 +396,27 @@ function extractJson(text) {
   return JSON.parse(text.slice(s, e + 1));
 }
 
-async function callClaude(system, user, maxTokens) {
+async function callAI(system, user, maxTokens) {
+  // OpenAI Chat Completions をブラウザから直接呼ぶ。応答はJSONのみ（response_format）
   const cfg = getCfg();
-  if (!cfg.anthropic) throw new Error("APIキー未設定");
-  const r = await fetch("https://api.anthropic.com/v1/messages", {
+  if (!cfg.openai) throw new Error("APIキー未設定");
+  const r = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": cfg.anthropic,
-      "anthropic-version": "2023-06-01",
-      "anthropic-dangerous-direct-browser-access": "true", // ブラウザ直接呼び出し（CORS）を許可するヘッダー
-    },
+    headers: { "Content-Type": "application/json", Authorization: "Bearer " + cfg.openai },
     body: JSON.stringify({
-      model: cfg.model || "claude-opus-5",
-      max_tokens: maxTokens || 2048,
-      system,
-      output_config: { effort: "medium" }, // 問い返し・下書きは中程度の推論で十分（コスト抑制）
-      messages: [{ role: "user", content: user }],
+      model: cfg.model || "gpt-5-mini",
+      max_completion_tokens: maxTokens || 2048,
+      response_format: { type: "json_object" },
+      messages: [{ role: "system", content: system }, { role: "user", content: user }],
     }),
   });
   if (!r.ok) { let m = "HTTP " + r.status; try { const j = await r.json(); m += " " + (j.error && j.error.message || ""); } catch (e) {} throw new Error(m); }
   const j = await r.json();
-  if (j.stop_reason === "refusal") throw new Error("AIが回答を控えました（安全性のため）");
-  return (j.content || []).filter(b => b.type === "text").map(b => b.text).join("");
+  const c = j.choices && j.choices[0];
+  if (!c) throw new Error("応答が空です");
+  if (c.finish_reason === "content_filter") throw new Error("AIが回答を控えました（コンテンツフィルタ）");
+  if (c.finish_reason === "length") throw new Error("応答が長すぎて途中で切れました");
+  return (c.message && c.message.content) || "";
 }
 
 const SYS_ASK = `あなたは日本語のタスク管理アシスタントです。ユーザーの仕事環境は Outlook メール・Microsoft Teams・LINE です。
@@ -437,7 +436,7 @@ const SYS_DRAFT = `あなたは日本語のビジネス文書アシスタント�
 async function aiAsk(t) {
   setAiStatus("<span class='spin'></span>AIがタスクを確認しています…");
   try {
-    const out = await callClaude(SYS_ASK, `タスク: ${t.title}${t.note ? "\nメモ: " + t.note : ""}${t.due ? "\n期限: " + t.due : ""}`, 1024);
+    const out = await callAI(SYS_ASK, `タスク: ${t.title}${t.note ? "\nメモ: " + t.note : ""}${t.due ? "\n期限: " + t.due : ""}`, 1024);
     const j = extractJson(out);
     t.ai = { kind: j.kind || "other", questions: Array.isArray(j.questions) ? j.questions.slice(0, 5) : [], answers: [], draft: null };
     touch(t); render();
@@ -450,7 +449,7 @@ async function aiDraft(t) {
   setAiStatus("<span class='spin'></span>下書きを作成中…");
   try {
     const qa = a.questions.map((q, i) => `Q${i + 1}: ${q}\nA${i + 1}: ${a.answers[i] || "（未回答）"}`).join("\n");
-    const out = await callClaude(SYS_DRAFT, `タスク: ${t.title}\n種類: ${AI_KINDS[a.kind] || a.kind}${t.note ? "\nメモ: " + t.note : ""}${t.due ? "\n期限: " + t.due : ""}\n\n${qa}`, 4096);
+    const out = await callAI(SYS_DRAFT, `タスク: ${t.title}\n種類: ${AI_KINDS[a.kind] || a.kind}${t.note ? "\nメモ: " + t.note : ""}${t.due ? "\n期限: " + t.due : ""}\n\n${qa}`, 4096);
     const j = extractJson(out);
     a.draft = { subject: j.subject || "", body: j.body || out, notes: j.notes || "" };
     touch(t); render();
@@ -487,7 +486,7 @@ function submitAdd() {
   const input = document.getElementById("add-input");
   const v = input.value.trim(); if (!v) return;
   const t = addTask(v); input.value = ""; selectedId = t.id; render();
-  if (getCfg().anthropic) aiAsk(t); // APIキーがあれば登録直後にAIが内容を確認しに来る
+  if (getCfg().openai) aiAsk(t); // APIキーがあれば登録直後にAIが内容を確認しに来る
 }
 document.getElementById("add-input").addEventListener("keydown", e => { if (e.key === "Enter") submitAdd(); });
 document.getElementById("add-go").addEventListener("click", submitAdd);
@@ -588,8 +587,8 @@ function fillCfg() {
   document.getElementById("cfg-path").value = c.path || "tasks.json";
   document.getElementById("cfg-branch").value = c.branch || "main";
   document.getElementById("cfg-token").value = c.token || "";
-  document.getElementById("cfg-anthropic").value = c.anthropic || "";
-  document.getElementById("cfg-model").value = c.model || "claude-opus-5";
+  document.getElementById("cfg-openai").value = c.openai || "";
+  document.getElementById("cfg-model").value = c.model || "gpt-5-mini";
 }
 document.getElementById("gh-config").addEventListener("click", () => { fillCfg(); panel.classList.toggle("open"); });
 document.getElementById("cfg-save").addEventListener("click", () => {
@@ -597,7 +596,7 @@ document.getElementById("cfg-save").addEventListener("click", () => {
     owner: document.getElementById("cfg-owner").value.trim(), repo: document.getElementById("cfg-repo").value.trim(),
     path: document.getElementById("cfg-path").value.trim() || "tasks.json", branch: document.getElementById("cfg-branch").value.trim() || "main",
     token: document.getElementById("cfg-token").value.trim(),
-    anthropic: document.getElementById("cfg-anthropic").value.trim(), model: document.getElementById("cfg-model").value,
+    openai: document.getElementById("cfg-openai").value.trim(), model: document.getElementById("cfg-model").value,
   });
   panel.classList.remove("open"); render(); sync();
 });
