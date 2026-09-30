@@ -399,6 +399,7 @@ const KEY = "shiden_tasks_v1", DEL_KEY = "shiden_tasks_deleted_v1", CFG_KEY = "s
 
 /* ---- バージョンと更新履歴（公開版が反映されているかの確認用。変更のたびに先頭へ追記する） ---- */
 const CHANGELOG = [
+  ["2026-09-30.41", "同期の負荷を軽減: 操作が止まって6秒後に送信（最長30秒）、同期中の変更も取りこぼさない、リモート変更が無ければ再描画しない"],
   ["2026-09-30.40", "★重要を廃止し、優先度1〜5（右肩上がりのバー）に変更。旧★は優先度4に移行。「重要」リストは「優先」（4以上）に"],
   ["2026-09-30.39", "ツールタグに Web を追加"],
   ["2026-09-30.38", "ツール（青）と種別（緑）が揃っていないタスクを「⚠ タグ不完全」として表示・絞り込み"],
@@ -986,25 +987,42 @@ function merge(local, remote) {
   return { tasks: mergeById(local.tasks, remote.tasks, del), lists: mergeById(local.lists, remote.lists, del), deleted: [...del] };
 }
 async function syncOnce(c) {
+  // 戻り値: リモート側の変更を取り込んだか（取り込んだときだけ再描画する）
+  const before = JSON.stringify({ t: db.tasks, l: db.lists });
   const remote = await ghGet(c);
   const merged = merge({ tasks: db.tasks, lists: db.lists, deleted: deleted() }, remote.data);
   db = { tasks: merged.tasks, lists: merged.lists }; save(db); saveDeleted(merged.deleted);
+  const changed = JSON.stringify({ t: db.tasks, l: db.lists }) !== before;
   await ghPut(c, merged, remote.sha);
+  return changed;
 }
-let syncing = false, syncTimer = null;
+let syncing = false, syncTimer = null, syncPending = false;
 async function sync() {
   const c = getCfg();
   if (!cfgOk(c)) { status("未同期（ローカルのみ）"); return; }
-  if (syncing) return;
+  if (syncing) { syncPending = true; return; } // 同期中の変更は捨てず、終わったらもう一度回す
   syncing = true; status("同期中…");
   try {
-    let done = false, lastErr;
-    for (let i = 0; i < 5 && !done; i++) { try { await syncOnce(c); done = true; } catch (e) { lastErr = e; if (!/\b409\b/.test(e.message)) throw e; } }
+    let done = false, lastErr, changed = false;
+    for (let i = 0; i < 5 && !done; i++) { try { changed = await syncOnce(c); done = true; } catch (e) { lastErr = e; if (!/\b409\b/.test(e.message)) throw e; } }
     if (!done) throw lastErr;
-    render(); status("同期完了 " + hhmm());
-  } catch (e) { status("同期失敗: " + e.message); } finally { syncing = false; }
+    if (changed) render(); // 自分の操作だけなら画面はもう最新なので描画し直さない（操作中のもたつき防止）
+    status("同期完了 " + hhmm());
+  } catch (e) { status("同期失敗: " + e.message); }
+  finally { syncing = false; if (syncPending) { syncPending = false; scheduleSync(); } }
 }
-function scheduleSync() { if (!cfgOk(getCfg())) return; clearTimeout(syncTimer); syncTimer = setTimeout(sync, 2500); }
+// 操作が止まってから同期する（連続操作中は待つ）。最長でも SYNC_MAX_WAIT 以内には送る
+const SYNC_IDLE = 6000, SYNC_MAX_WAIT = 30000;
+let syncFirstChange = 0;
+function scheduleSync() {
+  if (!cfgOk(getCfg())) return;
+  const t = now(); if (!syncFirstChange) syncFirstChange = t;
+  clearTimeout(syncTimer);
+  const wait = Math.max(0, Math.min(SYNC_IDLE, syncFirstChange + SYNC_MAX_WAIT - t));
+  syncTimer = setTimeout(() => { syncFirstChange = 0; sync(); }, wait);
+}
+// ページを閉じる／裏に回すときは待たずに送る
+document.addEventListener("visibilitychange", () => { if (document.hidden && syncTimer) { clearTimeout(syncTimer); syncFirstChange = 0; sync(); } });
 
 function fillCfg() {
   const c = getCfg();
