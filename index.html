@@ -453,6 +453,7 @@ const KEY = "shiden_tasks_v1", DEL_KEY = "shiden_tasks_deleted_v1", CFG_KEY = "s
 
 /* ---- バージョンと更新履歴（公開版が反映されているかの確認用。変更のたびに先頭へ追記する） ---- */
 const CHANGELOG = [
+  ["2026-09-30.71", "プライベートを付けると既定で「期限なし」になる（追加バー・詳細とも）"],
   ["2026-09-30.70", "プライベートのタスクは優先度が無くても不完全にしない"],
   ["2026-09-30.69", "種別タグに「購入」を追加"],
   ["2026-09-30.68", "追加バーに 🔒（プライベート）ボタン"],
@@ -1024,7 +1025,7 @@ document.querySelector(".add .tools").addEventListener("click", e => {
     document.getElementById("due-pop").hidden = true; renderAddTools(); return;
   }
   const btn = e.target.closest(".tool"); if (!btn) return;
-  if (btn.id === "add-private") { addPrivate = !addPrivate; renderAddTools(); return; }
+  if (btn.id === "add-private") { addPrivate = !addPrivate; if (addPrivate && !document.getElementById("add-due-in").value) addNoDue = true; else if (!addPrivate && addNoDue) addNoDue = false; renderAddTools(); return; }
   if (btn.id === "add-due") { e.stopPropagation(); const p = document.getElementById("due-pop"); p.hidden = !p.hidden; return; }
   const inp = btn.querySelector("input");
   try { if (inp.showPicker) inp.showPicker(); else inp.focus(); } catch (err) { inp.focus(); }
@@ -1105,7 +1106,9 @@ function bindDetail(t) {
   el.querySelector(".dtags").addEventListener("click", e => {
     const c = e.target.closest("[data-tag]"); if (!c) return;
     const g = c.dataset.tag; t.tags = t.tags || [];
-    t.tags = sortTags(t.tags.includes(g) ? t.tags.filter(x => x !== g) : [...t.tags, g]);
+    const adding = !t.tags.includes(g);
+    t.tags = sortTags(adding ? [...t.tags, g] : t.tags.filter(x => x !== g));
+    if (g === "プライベート" && adding && !t.due) t.noDue = true; // プライベートは既定で「期限なし」
     touch(t); render();
   });
   el.querySelector("#d-delete").addEventListener("click", async () => { if (await askConfirm(`「${t.title}」を削除しますか？`)) removeTask(t.id); });
