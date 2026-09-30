@@ -181,6 +181,9 @@
   .ai { margin-bottom: 8px; border: 1px solid rgba(168,120,255,0.3); border-radius: 4px; padding: 12px 14px; background: linear-gradient(180deg, rgba(124,58,237,0.12), rgba(124,58,237,0.03)); }
   .ai h4 { font-size: 13px; color: var(--accent-hi); margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
   .ai .kind { font-size: 11.5px; color: var(--muted); font-weight: 400; margin-left: auto; }
+  .ai .dismiss { background: none; border: none; color: var(--muted); font-size: 18px; line-height: 1; cursor: pointer; padding: 0 2px; margin-left: 6px; }
+  .ai h4 .kind + .dismiss { margin-left: 8px; }
+  .ai h4:has(.dismiss):not(:has(.kind)) .dismiss { margin-left: auto; }
   .ai .q { margin: 8px 0; }
   .ai .q label { display: block; font-size: 13px; color: var(--ink-2); margin-bottom: 4px; }
   .ai .q input { width: 100%; font-size: 14px; background: var(--surface-2); color: var(--ink); border: 1px solid var(--border); border-radius: 4px; padding: 8px 10px; }
@@ -354,6 +357,7 @@ const KEY = "shiden_tasks_v1", DEL_KEY = "shiden_tasks_deleted_v1", CFG_KEY = "s
 
 /* ---- バージョンと更新履歴（公開版が反映されているかの確認用。変更のたびに先頭へ追記する） ---- */
 const CHANGELOG = [
+  ["2026-09-30.24", "AI補助に × を追加（質問・下書きを消して初期状態へ。問い合わせ中は中断）"],
   ["2026-09-30.23", "スマホ: 「追加」ボタンが ⏰ の入力欄に隠れて押せない不具合を修正"],
   ["2026-09-30.22", "リスト作成時にそのリストへ移動しない"],
   ["2026-09-30.21", "設定の owner / repo / path / branch を既定値入りに（トークンだけ入力すれば同期）"],
@@ -557,7 +561,8 @@ function renderAi(t) {
     }
     body += `<div class="status" id="ai-status"></div>`;
   }
-  return `<div class="ai"><h4>⚡ AI補助${a.kind ? `<span class="kind">${AI_KINDS[a.kind] || a.kind}</span>` : ""}</h4>${body}</div>`;
+  const canDismiss = !!(a.questions || aiBusy === t.id);
+  return `<div class="ai"><h4>⚡ AI補助${a.kind ? `<span class="kind">${AI_KINDS[a.kind] || a.kind}</span>` : ""}${canDismiss ? `<button class="dismiss" data-ai="dismiss" title="AI補助をやめる（質問と下書きを消します）">×</button>` : ""}</h4>${body}</div>`;
 }
 
 function extractJson(text) {
@@ -567,12 +572,15 @@ function extractJson(text) {
   return JSON.parse(text.slice(s, e + 1));
 }
 
+let aiAbort = null, aiBusy = null; // 進行中の問い合わせ（× で中断できるように保持）
 async function callAI(system, user, maxTokens) {
   // OpenAI Chat Completions をブラウザから直接呼ぶ。応答はJSONのみ（response_format）
   const cfg = getCfg();
   if (!cfg.openai) throw new Error("APIキー未設定");
+  if (aiAbort) aiAbort.abort();
+  aiAbort = new AbortController();
   const r = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
+    method: "POST", signal: aiAbort.signal,
     headers: { "Content-Type": "application/json", Authorization: "Bearer " + cfg.openai },
     body: JSON.stringify({
       model: cfg.model || "gpt-5-mini",
@@ -605,13 +613,13 @@ const SYS_DRAFT = `あなたは日本語のビジネス文書アシスタント�
 {"subject":"件名（メール以外は空文字）","body":"本文","notes":"送る前に確認すべき点があれば一言（無ければ空文字）"}`;
 
 async function aiAsk(t) {
-  setAiStatus("<span class='spin'></span>AIがタスクを確認しています…");
+  aiBusy = t.id; renderDetail(); setAiStatus("<span class='spin'></span>AIがタスクを確認しています…");
   try {
     const out = await callAI(SYS_ASK, `タスク: ${t.title}${t.note ? "\nメモ: " + t.note : ""}${t.due ? "\n期限: " + t.due : ""}`, 1024);
     const j = extractJson(out);
     t.ai = { kind: j.kind || "other", questions: Array.isArray(j.questions) ? j.questions.slice(0, 5) : [], answers: [], draft: null };
-    touch(t); render();
-  } catch (e) { setAiStatus("失敗: " + e.message, true); }
+    aiBusy = null; touch(t); render();
+  } catch (e) { aiBusy = null; if (e.name === "AbortError") { renderDetail(); return; } setAiStatus("失敗: " + e.message, true); }
 }
 async function aiDraft(t) {
   const a = t.ai;
@@ -624,7 +632,7 @@ async function aiDraft(t) {
     const j = extractJson(out);
     a.draft = { subject: j.subject || "", body: j.body || out, notes: j.notes || "" };
     touch(t); render();
-  } catch (e) { setAiStatus("失敗: " + e.message, true); }
+  } catch (e) { if (e.name === "AbortError") return; setAiStatus("失敗: " + e.message, true); }
 }
 function setAiStatus(html, err) { const s = document.getElementById("ai-status"); if (s) { s.innerHTML = html; s.classList.toggle("err", !!err); } }
 async function copyText(s, label) {
@@ -755,6 +763,7 @@ function bindDetail(t) {
   el.querySelector("#d-delete").addEventListener("click", () => { if (confirm(`「${t.title}」を削除しますか？`)) removeTask(t.id); });
   el.querySelectorAll("[data-ai]").forEach(b => b.addEventListener("click", () => {
     const a = b.dataset.ai;
+    if (a === "dismiss") { if (aiAbort) aiAbort.abort(); aiBusy = null; t.ai = null; touch(t); render(); return; }
     if (a === "ask" || a === "reask") return aiAsk(t);
     if (a === "draft") return aiDraft(t);
     if (a === "copy") return copyText(t.ai.draft.body, "本文");
