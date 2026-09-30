@@ -413,6 +413,7 @@ const KEY = "shiden_tasks_v1", DEL_KEY = "shiden_tasks_deleted_v1", CFG_KEY = "s
 
 /* ---- バージョンと更新履歴（公開版が反映されているかの確認用。変更のたびに先頭へ追記する） ---- */
 const CHANGELOG = [
+  ["2026-09-30.50", "「今日の予定」を廃止。起動時は「タスク」一覧"],
   ["2026-09-30.49", "自由タグの追加を廃止（定型のツール・種別のみ）。既存の自由タグは削除のみ可"],
   ["2026-09-30.48", "詳細のタイトル欄を最初から2行分の高さに固定"],
   ["2026-09-30.47", "「タグ不完全」を「不完全」に改名し、優先度未設定も対象に"],
@@ -466,8 +467,8 @@ const CHANGELOG = [
 const VERSION = CHANGELOG[0][0];
 document.getElementById("ver").textContent = "v" + VERSION;
 document.getElementById("changelog").innerHTML = CHANGELOG.map(([v, m], i) => `<li class="${i === 0 ? "cur" : ""}"><span class="v">${v}</span><span>${m}</span></li>`).join("");
-const SMART = { myday: "今日の予定", important: "優先", planned: "今後の予定", all: "タスク" }; // 優先＝優先度4以上
-const SMART_ICO = { myday: "☀️", important: "📶", planned: "📅", all: "🏠" };
+const SMART = { all: "タスク", important: "優先", planned: "今後の予定" }; // 優先＝優先度4以上。「今日の予定」は廃止（2026-09-30）
+const SMART_ICO = { all: "🏠", important: "📶", planned: "📅" };
 function prioBars(v, lg) { return `<span class="prio ${lg ? "lg" : ""}" data-act="prio" data-v="${v || 0}" title="優先度 ${v || 0}/5（バーをクリックで設定）">${[1, 2, 3, 4, 5].map(p => `<i data-p="${p}"></i>`).join("")}</span>`; }
 const TAG_CH = ["Teams", "Outlook", "LINE", "Excel", "Word", "PP", "Web", "その他ツール"];  // どこの案件か／何で作るか（PP＝PowerPoint）
 const TAG_TY = ["対応", "返信", "新規文章作成", "成果物作成", "手配", "検討", "その他種別"];  // 表示順  // どんな仕事か（対応＝アンケート回答・申請など、考えずにサッと片付ける軽い作業）
@@ -517,7 +518,7 @@ function migrateTags() { let ch = false; db.tasks.forEach(t => {
     if (t.priority == null) { t.priority = t.important ? 4 : 0; delete t.important; ch = true; } // 旧 ★重要 → 優先度4
     if (!t.tags) return; const n = t.tags.map(g => TAG_RENAME[g] || g); if (n.join() !== t.tags.join()) { t.tags = [...new Set(n)]; t.mt = now(); ch = true; } }); if (ch) { save(db); scheduleSync(); } }
 migrateTags();
-let view = "myday";           // 表示中のリスト（スマート or リストid）
+let view = "all";             // 表示中のリスト（スマート or リストid）
 let selectedId = null;        // 詳細表示中のタスク
 let doneOpen = true;          // 「完了」セクションの開閉
 
@@ -526,7 +527,7 @@ function task(id) { return db.tasks.find(t => t.id === id); }
 
 function addTask(title, listId, opt) {
   opt = opt || {};
-  const t = { id: newId(), title, done: false, priority: view === "important" ? 4 : 0, myDay: view === "myday", due: opt.due || (view === "planned" ? todayStr() : ""), remind: opt.remind || "", remindFired: false, tags: [], listId: listId || (SMART[view] ? "" : view), steps: [], note: "", ai: null, ct: now(), mt: now() };
+  const t = { id: newId(), title, done: false, priority: view === "important" ? 4 : 0, myDay: false, due: opt.due || (view === "planned" ? todayStr() : ""), remind: opt.remind || "", remindFired: false, tags: [], listId: listId || (SMART[view] ? "" : view), steps: [], note: "", ai: null, ct: now(), mt: now() };
   db.tasks.push(t); save(db); scheduleSync();
   return t;
 }
@@ -547,7 +548,6 @@ function removeList(id) {
 function visibleTasks() {
   const td = todayStr();
   return db.tasks.filter(t => {
-    if (view === "myday") return t.myDay || (t.due === td && !t.done);
     if (view === "important") return (t.priority || 0) >= 4;
     if (view === "planned") return !!t.due;
     if (view === "all") return true;
@@ -573,10 +573,10 @@ function renderNav() {
 function renderList() {
   const list = db.lists.find(l => l.id === view);
   document.getElementById("list-title").innerHTML = `<span>${list ? "☰" : SMART_ICO[view]}</span>${esc(SMART[view] || (list ? list.name : ""))}`;
-  document.getElementById("list-date").textContent = view === "myday" ? new Date().toLocaleDateString("ja-JP", { month: "long", day: "numeric", weekday: "long" }) : "";
+  document.getElementById("list-date").textContent = view === "all" ? new Date().toLocaleDateString("ja-JP", { month: "long", day: "numeric", weekday: "long" }) : "";
   document.getElementById("list-menu").hidden = !list;
   document.getElementById("list-pop").hidden = true;
-  document.getElementById("main").classList.toggle("myday", view === "myday");
+  document.getElementById("main").classList.toggle("myday", view === "all");
   const all = visibleTasks();
   // タグバー: 表示中のリストに存在するタグだけを出す
   const counts = {}; all.forEach(t => (t.tags || []).forEach(g => counts[g] = (counts[g] || 0) + 1));
@@ -595,7 +595,6 @@ function renderList() {
     const meta = [];
     const ln = t.listId ? (db.lists.find(l => l.id === t.listId) || {}).name : "タスク";
     if (SMART[view] && ln) meta.push(`<span>${esc(ln)}</span>`);
-    if (t.myDay && view !== "myday") meta.push(`<span>☀️ 今日の予定</span>`);
     if (t.due) meta.push(`<span class="${!t.done && t.due < td ? "over" : (t.due === td ? "today" : "")}">📅 ${fmtDue(t.due)}</span>`);
     if (t.remind && !t.done) meta.push(`<span class="${t.remindFired ? "" : "today"}">⏰ ${fmtRemind(t.remind)}</span>`);
     if (t.steps.length) { const nx = t.steps.find(x => !x.done); meta.push(`<span>${t.steps.filter(s => s.done).length}/${t.steps.length}${nx && !t.done ? " → " + esc(nx.title) : ""}</span>`); }
@@ -611,7 +610,7 @@ function renderList() {
     </li>`;
   };
   let html = open.map(row).join("");
-  if (!open.length && !done.length) html += `<div class="empty"><div class="big">${list ? "☰" : SMART_ICO[view]}</div>${view === "myday" ? "今日に集中しましょう。下の欄からタスクを追加できます。" : "タスクはありません"}</div>`;
+  if (!open.length && !done.length) html += `<div class="empty"><div class="big">${list ? "☰" : SMART_ICO[view]}</div>${view === "all" ? "下の欄からタスクを追加できます。" : "タスクはありません"}</div>`;
   if (done.length) html += `<div class="done-head ${doneOpen ? "" : "closed"}" id="done-head"><span class="chev">▾</span>完了 ${done.length}</div>` + (doneOpen ? done.map(row).join("") : "");
   document.getElementById("tasks").innerHTML = html;
 }
@@ -637,9 +636,6 @@ function renderDetail() {
         <ul class="steps" id="d-steps">${t.steps.map(s => `<li class="${s.done ? "done" : ""} ${s.child ? "child" : ""}" data-sid="${s.id}"><span class="chk ${s.done ? "on" : ""}" data-sact="toggle">${s.done ? "✓" : ""}</span><span class="t">${esc(s.title)}</span>${getCfg().openai && !s.child ? `<button class="sub" data-sact="brk" title="このステップをさらに細かく分解">🧩</button>` : ""}<button class="rm" data-sact="rm" title="ステップを削除">×</button></li>`).join("")}</ul>
         <div class="stepadd"><span class="plus">＋</span><input type="text" id="d-step" placeholder="${t.steps.length ? "次のステップ" : "ステップの追加"}" enterkeyhint="done">${getCfg().openai ? `<button class="brk" id="d-brk" title="AIがタスクを最小単位のステップに分解します">🧩 AIで分解</button>` : ""}</div>
         <div class="brk-status" id="brk-status"></div>
-      </div>
-      <div class="dcard">
-        <div class="drow ${t.myDay ? "on" : ""}" id="d-myday"><span class="ico">☀️</span><span class="lbl">${t.myDay ? "今日の予定に追加済み" : "今日の予定に追加"}</span>${t.myDay ? `<button class="clear" data-clear="myday" title="今日の予定から削除">×</button>` : ""}</div>
       </div>
       <div class="dcard dtags">
         <div class="grp"><span class="lbl">🏷 ツール</span>${TAG_CH.map(g => tagChip(g, (t.tags || []).includes(g))).join("")}</div>
@@ -974,7 +970,6 @@ function bindDetail(t) {
   const ta = el.querySelector("#d-title"); const grow = () => { ta.style.height = "auto"; ta.style.height = ta.scrollHeight + "px"; }; ta.addEventListener("input", grow); grow();
   el.querySelector(".dhead [data-act=toggle]").addEventListener("click", () => { t.done = !t.done; touch(t); render(); });
   el.querySelector(".dhead .prio").addEventListener("click", e => { const p = e.target.closest("[data-p]"); if (!p) return; const v = Number(p.dataset.p); t.priority = t.priority === v ? 0 : v; touch(t); render(); });
-  el.querySelector("#d-myday").addEventListener("click", e => { if (e.target.closest("[data-clear]")) { t.myDay = false; } else if (!t.myDay) t.myDay = true; else return; touch(t); render(); });
   el.querySelector("#d-due").addEventListener("change", e => { t.due = e.target.value; touch(t); render(); });
   const dc = el.querySelector("[data-clear=due]"); if (dc) dc.addEventListener("click", () => { t.due = ""; touch(t); render(); });
   el.querySelector("#d-remind").addEventListener("change", e => { t.remind = e.target.value; t.remindFired = false; if (t.remind) askNotifyPermission(); touch(t); render(); });
