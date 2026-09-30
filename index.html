@@ -351,6 +351,7 @@ const KEY = "shiden_tasks_v1", DEL_KEY = "shiden_tasks_deleted_v1", CFG_KEY = "s
 
 /* ---- バージョンと更新履歴（公開版が反映されているかの確認用。変更のたびに先頭へ追記する） ---- */
 const CHANGELOG = [
+  ["2026-09-30.22", "リスト作成時にそのリストへ移動しない"],
   ["2026-09-30.21", "設定の owner / repo / path / branch を既定値入りに（トークンだけ入力すれば同期）"],
   ["2026-09-30.20", "設定に「通知の許可と動作確認」ボタンと状態表示を追加"],
   ["2026-09-30.19", "追加バーを一覧の下の固定帯に（タスクが裏に透けない）"],
@@ -641,7 +642,7 @@ document.getElementById("newlist-add").addEventListener("click", () => {
   const i = document.getElementById("newlist"); const v = i.value.trim();
   document.getElementById("side").classList.remove("open");
   if (!v) return;
-  const l = addList(v); i.value = ""; view = l.id; mobileScreen = "list"; render();
+  addList(v); i.value = ""; render(); // 作成してもそのリストへは移動しない（サイドバーに追加されるだけ）
 });
 document.getElementById("newlist").addEventListener("keydown", e => { if (e.key === "Enter") document.getElementById("newlist-add").click(); if (e.key === "Escape") { e.target.value = ""; document.getElementById("side").classList.remove("open"); } });
 document.getElementById("newlist").addEventListener("blur", () => { setTimeout(() => { if (!document.getElementById("newlist").value.trim()) document.getElementById("side").classList.remove("open"); }, 150); });
