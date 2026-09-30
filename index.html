@@ -105,7 +105,7 @@
   .popover { position: absolute; right: 0; top: 36px; z-index: 20; background: var(--surface-2); border: 1px solid var(--grid); border-radius: 6px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); min-width: 170px; padding: 4px; }
   .popover button { display: block; width: 100%; text-align: left; padding: 9px 12px; background: transparent; border: none; color: var(--ink); font-size: 13.5px; border-radius: 4px; cursor: pointer; }
   .popover button.danger { color: var(--bad); }
-  .tasks-scroll { flex: 1; min-height: 0; overflow: auto; padding: 0 28px 92px; }
+  .tasks-scroll { flex: 1; min-height: 0; overflow: auto; padding: 0 28px 12px; }
   .tasks { list-style: none; display: flex; flex-direction: column; gap: 2px; }
   .task { display: flex; align-items: center; gap: 14px; background: var(--row); border-radius: 4px; padding: 0 14px; min-height: 52px; cursor: pointer; border: 1px solid transparent; }
   .task.sel { background: var(--surface-3); border-color: rgba(168,120,255,0.35); }
@@ -128,7 +128,8 @@
   .done-head.closed .chev { transform: rotate(-90deg); }
 
   /* 追加バー（メイン下部に固定。MS To Do の "＋ タスクの追加"） */
-  .add { position: absolute; left: 28px; right: 28px; bottom: 18px; display: flex; align-items: center; gap: 12px; background: var(--surface-2); border: 1px solid var(--grid); border-radius: 4px; padding: 0 14px; min-height: 52px; box-shadow: 0 10px 30px rgba(0,0,0,0.45); }
+  /* 追加バーは浮かせず、一覧の下に固定の帯として置く（タスクが裏に透けない） */
+  .add { flex: none; margin: 8px 28px 18px; display: flex; align-items: center; gap: 12px; background: var(--surface-2); border: 1px solid var(--grid); border-radius: 4px; padding: 0 14px; min-height: 52px; }
   .add:focus-within { border-color: rgba(168,120,255,0.5); }
   .add .plus { color: var(--accent-hi); font-size: 20px; width: 18px; text-align: center; }
   .add input { flex: 1; min-width: 0; font-size: 14px; background: transparent; color: var(--ink); border: none; outline: none; padding: 10px 0; }
@@ -232,7 +233,7 @@
     .listhead { padding: 12px 14px 8px; align-items: center; }
     .listhead .back { display: inline-flex; font-size: 22px; }
     .listhead h2 { font-size: 21px; }
-    .tasks-scroll { padding: 0 12px 90px; }
+    .tasks-scroll { padding: 0 12px 8px; }
     .task { min-height: 56px; gap: 12px; -webkit-touch-callout: none; user-select: none; }
     .nav li { -webkit-touch-callout: none; user-select: none; }
     /* ○のタップ判定を広げる: 見た目は22pxのまま、透明な当たり判定を上下左右14px分足す（約50px四方） */
@@ -240,7 +241,7 @@
     .chk::before { content: ""; position: absolute; inset: -14px; }
     .steps .chk { width: 18px; height: 18px; }
     .task .title { font-size: 15px; }
-    .add { left: 10px; right: 10px; bottom: max(10px, env(safe-area-inset-bottom)); }
+    .add { margin: 6px 10px max(10px, env(safe-area-inset-bottom)); }
     .add input { font-size: 16px; }
     .cfg input, .cfg select { font-size: 16px; }
     .dhead .title-in, .ai .q input, .stepadd input, .dnote textarea, .drow input[type=date], .drow input[type=datetime-local], .drow select { font-size: 16px; }
@@ -347,6 +348,7 @@ const KEY = "shiden_tasks_v1", DEL_KEY = "shiden_tasks_deleted_v1", CFG_KEY = "s
 
 /* ---- バージョンと更新履歴（公開版が反映されているかの確認用。変更のたびに先頭へ追記する） ---- */
 const CHANGELOG = [
+  ["2026-09-30.19", "追加バーを一覧の下の固定帯に（タスクが裏に透けない）"],
   ["2026-09-30.18", "追加バーに 📅 期限・⏰ 通知ボタンを追加。詳細にも通知欄。時刻になるとOS通知またはトースト（アプリを開いている間のみ）"],
   ["2026-09-30.17", "PC: タスクが増えると一覧をスクロールできない不具合を修正"],
   ["2026-09-30.16", "スマホ: タスクに触れたときの選択風ハイライトを廃止"],
