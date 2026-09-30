@@ -73,8 +73,10 @@
 
   /* ---- 3ペイン ---- */
   /* grid-template-rows を minmax(0,1fr) にしないと、タスクが増えたときにグリッド行が中身に合わせて伸びてページ外に溢れ、スクロールできなくなる */
-  .app { flex: 1; min-height: 0; display: grid; grid-template-columns: var(--side-w) 1fr 0; grid-template-rows: minmax(0, 1fr); overflow: hidden; }
-  .app.has-detail { grid-template-columns: var(--side-w) 1fr var(--detail-w); }
+  /* PC は詳細ペインを常に確保する（未選択時はプレースホルダ）。スマホは has-detail のときだけ重ねる */
+  .app { flex: 1; min-height: 0; display: grid; grid-template-columns: var(--side-w) 1fr var(--detail-w); grid-template-rows: minmax(0, 1fr); overflow: hidden; }
+  .detail .placeholder { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; color: var(--muted); font-size: 13px; text-align: center; padding: 20px; }
+  .detail .placeholder .big { font-size: 34px; opacity: .6; }
 
   /* サイドバー */
   .side { background: var(--surface); border-right: 1px solid var(--grid); display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
@@ -382,6 +384,7 @@ const KEY = "shiden_tasks_v1", DEL_KEY = "shiden_tasks_deleted_v1", CFG_KEY = "s
 
 /* ---- バージョンと更新履歴（公開版が反映されているかの確認用。変更のたびに先頭へ追記する） ---- */
 const CHANGELOG = [
+  ["2026-09-30.29", "PC: 詳細ペインを常に表示（× で閉じても領域は残る）"],
   ["2026-09-30.28", "種別タグ「実施」を「対応」に改名（既存データは自動移行）"],
   ["2026-09-30.27", "種別タグに「実施」を追加"],
   ["2026-09-30.26", "タグ付け: 案件（Teams/Outlook/LINE）と種別（文章/作成/検討/手配）＋自由タグ。一覧でタグ絞り込み。AIが判定時にタグを自動提案"],
@@ -551,7 +554,12 @@ function renderList() {
 function renderDetail() {
   const el = document.getElementById("detail"), app = document.getElementById("app");
   const t = selectedId && task(selectedId);
-  if (!t) { el.classList.remove("show"); app.classList.remove("has-detail"); return; }
+  if (!t) {
+    app.classList.remove("has-detail");
+    if (isMobile()) { el.classList.remove("show"); return; }
+    // PC: 領域は残し、案内だけ出す
+    el.classList.add("show"); el.innerHTML = `<div class="placeholder"><div class="big">☑</div>タスクを選ぶと、ここに詳細と AI補助が表示されます</div>`; return;
+  }
   el.classList.add("show"); app.classList.add("has-detail");
   const created = new Date(t.ct).toLocaleDateString("ja-JP", { year: "numeric", month: "short", day: "numeric" });
   el.innerHTML = `
