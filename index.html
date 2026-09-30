@@ -168,6 +168,7 @@
   .star.on { color: var(--accent-hi); }
   .empty { color: var(--muted); font-size: 13.5px; padding: 60px 8px; text-align: center; }
   .empty .big { font-size: 40px; margin-bottom: 10px; }
+  .priv-note { margin-top: 12px; font-size: 12px; color: var(--muted); padding: 6px 4px; }
   .done-head { display: flex; align-items: center; gap: 8px; margin: 14px 0 6px; font-size: 13px; color: var(--ink-2); cursor: pointer; user-select: none; padding: 6px 4px; border-radius: 4px; width: fit-content; }
   .done-head .chev { display: inline-block; transition: transform .15s; font-size: 11px; }
   .done-head.closed .chev { transform: rotate(-90deg); }
@@ -453,6 +454,7 @@ const KEY = "shiden_tasks_v1", DEL_KEY = "shiden_tasks_deleted_v1", CFG_KEY = "s
 
 /* ---- バージョンと更新履歴（公開版が反映されているかの確認用。変更のたびに先頭へ追記する） ---- */
 const CHANGELOG = [
+  ["2026-09-30.73", "プライベートのタスクは既定表示では隠し、フィルタを掛けたときだけ表示"],
   ["2026-09-30.72", "プライベートはツール未設定でも不完全にしない（種別は必要）"],
   ["2026-09-30.71", "プライベートを付けると既定で「期限なし」になる（追加バー・詳細とも）"],
   ["2026-09-30.70", "プライベートのタスクは優先度が無くても不完全にしない"],
@@ -640,7 +642,7 @@ function render() { migrateTags(); renderNav(); renderList(); renderDetail(); do
 let mobileScreen = "home"; // スマホ: "home"=リスト一覧 / "list"=タスク一覧
 
 function renderNav() {
-  const cnt = k => { const v = view; view = k; const n = visibleTasks().filter(t => !t.done).length; view = v; return n; };
+  const cnt = k => { const v = view; view = k; const n = visibleTasks().filter(t => !t.done && !(t.tags || []).includes("プライベート")).length; view = v; return n; };
   const item = (k, ico, name) => `<li class="${view === k ? "active" : ""}" data-view="${k}"><span class="ico">${ico}</span><span class="nm">${esc(name)}</span><span class="cnt">${cnt(k) || ""}</span></li>`;
   let html = Object.keys(SMART).map(k => item(k, SMART_ICO[k], SMART[k])).join("");
   // リスト分けは廃止（2026-09-30）。自作リストは表示しない（データは残るが、タスクはすべて「タスク」に出る）
@@ -666,7 +668,11 @@ function renderList() {
   const nHigh = all.filter(t => !t.done && (t.priority || 0) >= 4).length;
   const incChip = `<span class="tag warn ${tagFilter === INCOMPLETE ? "on" : ""} ${nInc ? "" : "zero"}" data-tag="${INCOMPLETE}" title="ツール・種別・優先度・期限のどれかが未設定、または期限超過のタスク（プライベートはツール・優先度不要）">⚠ 不完全${nInc ? " " + nInc : ""}</span><span class="tag today ${tagFilter === TODAY ? "on" : ""} ${nToday ? "" : "zero"}" data-tag="${TODAY}" title="期限が今日のタスク（超過分も含む）">📅 今日締切${nToday ? " " + nToday : ""}</span><span class="tag high ${tagFilter === HIGH ? "on" : ""} ${nHigh ? "" : "zero"}" data-tag="${HIGH}" title="優先度4以上のタスク">📶 優先度高${nHigh ? " " + nHigh : ""}</span><span class="sep"></span>`;
   document.getElementById("tagbar").innerHTML = incChip + TAG_CH.map(chipOf).join("") + `<span class="sep"></span>` + TAG_TY.map(chipOf).join("") + `<span class="sep"></span>` + TAG_EX.map(chipOf).join("") + (free.length ? `<span class="sep"></span>` + free.map(chipOf).join("") : "") + (tagFilter ? `<button class="clear" data-tag="">× 絞り込み解除</button>` : "");
-  const ts = tagFilter === INCOMPLETE ? all.filter(tagIncomplete) : tagFilter === TODAY ? all.filter(t => t.due && t.due <= todayStr()) : tagFilter === HIGH ? all.filter(t => (t.priority || 0) >= 4) : tagFilter ? all.filter(t => (t.tags || []).includes(tagFilter)) : all;
+  const isPriv = t => (t.tags || []).includes("プライベート");
+  let ts = tagFilter === INCOMPLETE ? all.filter(tagIncomplete) : tagFilter === TODAY ? all.filter(t => t.due && t.due <= todayStr()) : tagFilter === HIGH ? all.filter(t => (t.priority || 0) >= 4) : tagFilter ? all.filter(t => (t.tags || []).includes(tagFilter)) : all;
+  // フィルタなしの既定表示ではプライベートを隠す（何かフィルタを掛けたときだけ登場する）
+  const hiddenPriv = tagFilter ? 0 : ts.filter(t => isPriv(t) && !t.done).length;
+  if (!tagFilter) ts = ts.filter(t => !isPriv(t));
   const open = sortOpen(ts.filter(t => !t.done));
   document.getElementById("sort-lbl").textContent = SORT_LBL[sortCfg.key] + "・" + DIR_LBL[sortCfg.key][sortCfg.dir === "asc" ? 1 : 0];
   document.querySelector("#sort-pop [data-dir=desc]").textContent = DIR_LBL[sortCfg.key][0];
@@ -694,6 +700,7 @@ function renderList() {
   };
   let html = open.map(row).join("");
   if (!open.length && !done.length) html += `<div class="empty"><div class="big">${list ? "☰" : SMART_ICO[view]}</div>${view === "all" ? "下の欄からタスクを追加できます。" : "タスクはありません"}</div>`;
+  if (hiddenPriv) html += `<div class="priv-note">🔒 プライベート ${hiddenPriv}件は非表示（フィルタで「プライベート」を選ぶと表示）</div>`;
   if (done.length) html += `<div class="done-head ${doneOpen ? "" : "closed"}" id="done-head"><span class="chev">▾</span>完了 ${done.length}</div>` + (doneOpen ? done.map(row).join("") : "");
   document.getElementById("tasks").innerHTML = html;
 }
