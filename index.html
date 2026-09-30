@@ -104,6 +104,7 @@
   .listhead h2 { font-size: 24px; font-weight: 600; color: #fff; display: flex; align-items: center; gap: 10px; line-height: 1.2; }
   .listhead .date { color: var(--ink-2); font-size: 13px; margin-top: 4px; }
   .menu-wrap { position: relative; }
+  .popover.up { top: auto; bottom: 40px; }
   .popover { position: absolute; right: 0; top: 36px; z-index: 20; background: var(--surface-2); border: 1px solid var(--grid); border-radius: 6px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); min-width: 170px; padding: 4px; }
   .popover button { display: block; width: 100%; text-align: left; padding: 9px 12px; background: transparent; border: none; color: var(--ink); font-size: 13.5px; border-radius: 4px; cursor: pointer; }
   .popover button.danger { color: var(--bad); }
@@ -418,7 +419,16 @@
       <div class="tasks-scroll" id="tasks-scroll"><div class="ptr" id="ptr-main"></div><ul class="tasks" id="tasks"></ul></div>
       <div class="add"><span class="plus">＋</span><input id="add-input" placeholder="タスクの追加" enterkeyhint="done">
         <span class="tools">
-          <button class="tool" id="add-due" type="button" title="期限日を追加"><span id="add-due-lbl">📅</span><input type="date" id="add-due-in" tabindex="-1"></button>
+          <span class="menu-wrap"><button class="tool" id="add-due" type="button" title="期限"><span id="add-due-lbl">📅</span></button>
+            <div class="popover up" id="due-pop" hidden>
+              <button type="button" data-due="today">今日</button>
+              <button type="button" data-due="tomorrow">明日</button>
+              <button type="button" data-due="monday">週明け月曜</button>
+              <button type="button" data-due="none">期限なし</button>
+              <div style="height:1px;background:var(--grid);margin:4px 0"></div>
+              <button type="button" data-due="pick">📅 カレンダーで選ぶ…</button>
+              <input type="date" id="add-due-in" tabindex="-1" style="position:absolute;opacity:0;width:1px;height:1px;left:0;bottom:0;pointer-events:none">
+            </div></span>
           <button class="tool" id="add-remind" type="button" title="通知（アプリを開いているときに知らせます）"><span id="add-remind-lbl">⏰</span><input type="datetime-local" id="add-remind-in" tabindex="-1"></button>
         </span>
         <button class="go" id="add-go" type="button">追加</button></div>
@@ -441,6 +451,8 @@ const KEY = "shiden_tasks_v1", DEL_KEY = "shiden_tasks_deleted_v1", CFG_KEY = "s
 
 /* ---- バージョンと更新履歴（公開版が反映されているかの確認用。変更のたびに先頭へ追記する） ---- */
 const CHANGELOG = [
+  ["2026-09-30.64", "種別タグに「調査」を追加（手配→調査→検討の順）"],
+  ["2026-09-30.63", "追加バーの 📅 をメニュー化（今日／明日／週明け月曜／期限なし／カレンダー）"],
   ["2026-09-30.62", "並べ替えの向きを項目ごとの言葉に（優先度=高い順／期限=近い順／追加日=新しい順 が既定）"],
   ["2026-09-30.61", "フィルタに「📶 優先度高」（4以上）を追加"],
   ["2026-09-30.60", "フィルタに「📅 今日締切」を追加（期限が今日以前の未完了）"],
@@ -511,7 +523,7 @@ const SMART = { all: "タスク" }; // スマートリストは「タスク」�
 const SMART_ICO = { all: "🏠" };
 function prioBars(v, lg) { return `<span class="prio ${lg ? "lg" : ""}" data-act="prio" data-v="${v || 0}" title="優先度 ${v || 0}/5（バーをクリックで設定）">${[1, 2, 3, 4, 5].map(p => `<i data-p="${p}"></i>`).join("")}</span>`; }
 const TAG_CH = ["Teams", "Outlook", "LINE", "Excel", "Word", "PP", "Web", "その他ツール"];  // どこの案件か／何で作るか（PP＝PowerPoint）
-const TAG_TY = ["対応", "返信", "新規文章作成", "成果物作成", "手配", "検討", "その他種別"];  // 表示順  // どんな仕事か（対応＝アンケート回答・申請など、考えずにサッと片付ける軽い作業）
+const TAG_TY = ["対応", "返信", "新規文章作成", "成果物作成", "手配", "調査", "検討", "その他種別"];  // 表示順  // どんな仕事か（対応＝アンケート回答・申請など、考えずにサッと片付ける軽い作業）
 const TAG_RENAME = { "実施": "対応", "文章": "新規文章作成", "文章作成": "新規文章作成", "作成": "成果物作成" }; // 旧名称の移行（読み込み時に置換）
 function tagClass(tag) { return TAG_CH.includes(tag) ? "ch" : TAG_TY.includes(tag) ? "ty" : "fr"; }
 function tagChip(tag, on) { return `<span class="tag ${tagClass(tag)} ${on ? "on" : ""}" data-tag="${esc(tag)}">${esc(tag)}</span>`; }
@@ -822,7 +834,7 @@ const SYS_ASK = `あなたは日本語のタスク管理アシスタントです
 - meeting: 会議や打ち合わせの日程調整
 - research: 予約・手配・購入・調べもの（例: ゴルフのセッティング、店の予約、旅行、備品の購入、比較検討）。この場合は同行者・希望日時・場所や地域・予算・条件を聞く
 - work: 自分で行う作業（資料作成、週報、確認作業など）。この場合は成果物・期限・材料を聞く
-さらに tags として、案件のツール（Teams / Outlook / LINE / Excel / Word / PP / Web のいずれか。PP は PowerPoint、Web はブラウザで行う調べもの・申請・予約など。どれにも当てはまらない道具なら「その他ツール」。分からなければ入れない）と仕事の種別（対応=アンケート回答・申請・提出など考えずにすぐ片付く軽い作業 / 返信=届いたメールやメッセージへの返事 / 新規文章作成=新規にメールやメッセージなど文を書く / 成果物作成=資料・図・データなど物を作る / 手配=予約や調達 / 検討=考える・比較する / その他種別=どれにも当てはまらない、のいずれか1つ）を付ける。
+さらに tags として、案件のツール（Teams / Outlook / LINE / Excel / Word / PP / Web のいずれか。PP は PowerPoint、Web はブラウザで行う調べもの・申請・予約など。どれにも当てはまらない道具なら「その他ツール」。分からなければ入れない）と仕事の種別（対応=アンケート回答・申請・提出など考えずにすぐ片付く軽い作業 / 返信=届いたメールやメッセージへの返事 / 新規文章作成=新規にメールやメッセージなど文を書く / 成果物作成=資料・図・データなど物を作る / 手配=予約や調達 / 調査=情報を調べる・確認する・問い合わせる / 検討=考える・比較して決める / その他種別=どれにも当てはまらない、のいずれか1つ）を付ける。
 {"kind":"email|teams|meeting|line|research|work|other","tags":["Teams","新規文章作成"],"questions":["…","…"]}`;
 
 const SYS_DRAFT = `あなたは日本語のビジネス文書アシスタントです。ユーザーの仕事環境は Outlook メール・Microsoft Teams・LINE です。
@@ -840,7 +852,7 @@ const SYS_BREAKDOWN = `あなたはADHD特性のある人のための「タス�
 - 動詞で終わる短文。曖昧な語（「進める」「対応する」）は使わず、具体的な成果物・相手・手段を書く
 タグの使い方（タグはユーザーが付けた仕事の骨組み。必ず段取りに反映する）:
 - ツール系タグ（Teams / Outlook / LINE / Excel / Word / PP / Web）は「どの手段で何をするか」を示す。複数あればそれぞれに対応するステップを作る（例: Outlook と LINE → Outlookで返信するステップと LINEで返信するステップ）
-- 種別タグ（対応 / 返信 / 新規文章作成 / 成果物作成 / 手配 / 検討）は「行う動作」を示す。成果物作成なら成果物を仕上げるステップ、返信なら返信するステップを含める
+- 種別タグ（対応 / 返信 / 新規文章作成 / 成果物作成 / 手配 / 調査 / 検討）は「行う動作」を示す。成果物作成なら成果物を仕上げるステップ、返信なら返信するステップを含める
 例: タスク「会議内容まとめ」タグ「Outlook, LINE, 返信, 新規文章作成」→ ["会議内容のメモを完成させる","メモをOutlookに添付して出席者全員に返信する","LINEでも要点を返信する"]
 - 出力は次のJSONのみ
 {"steps":["…","…"],"tip":"取りかかりやすくする一言（無ければ空文字）"}`;
@@ -950,7 +962,7 @@ document.getElementById("sort-pop").addEventListener("click", e => {
   if (b.dataset.sort) sortCfg.key = b.dataset.sort; if (b.dataset.dir) sortCfg.dir = b.dataset.dir;
   localStorage.setItem(SORT_KEY, JSON.stringify(sortCfg)); document.getElementById("sort-pop").hidden = true; render();
 });
-document.addEventListener("click", () => { document.getElementById("sort-pop").hidden = true; });
+document.addEventListener("click", () => { document.getElementById("sort-pop").hidden = true; document.getElementById("due-pop").hidden = true; });
 // リストの「…」メニュー（自作リストのみ: 名前変更／削除）
 document.getElementById("list-menu").addEventListener("click", e => { e.stopPropagation(); const p = document.getElementById("list-pop"); p.hidden = !p.hidden; });
 document.addEventListener("click", () => { document.getElementById("list-pop").hidden = true; });
@@ -974,8 +986,8 @@ function submitAdd() {
   const input = document.getElementById("add-input");
   const v = input.value.trim(); if (!v) return;
   const dueIn = document.getElementById("add-due-in"), remIn = document.getElementById("add-remind-in");
-  const t = addTask(v, null, { due: dueIn.value, remind: remIn.value }); input.value = "";
-  dueIn.value = ""; remIn.value = ""; renderAddTools();
+  const t = addTask(v, null, { due: dueIn.value, remind: remIn.value }); if (addNoDue && !dueIn.value) t.noDue = true; input.value = "";
+  dueIn.value = ""; remIn.value = ""; addNoDue = false; renderAddTools();
   // 追加時は詳細を開かず一覧に足すだけ（PC・スマホ共通）。AIの問い返しは裏で走り、行に「⚡ 回答待ち」が付く
   if (!isMobile()) selectedId = t.id; // PCのみ: 追加直後に詳細を開き、タグ・優先度・期限をその場で付ける。スマホは一覧のまま
   render();
@@ -984,18 +996,28 @@ function submitAdd() {
 document.getElementById("add-input").addEventListener("keydown", e => { if (e.key === "Enter") submitAdd(); });
 document.getElementById("add-go").addEventListener("click", submitAdd);
 // 追加バーの 📅 / ⏰: 選択済みなら日付を表示し、× で解除
+let addNoDue = false; // 追加バーで「期限なし」を選んだ状態
 function renderAddTools() {
   const due = document.getElementById("add-due-in").value, rem = document.getElementById("add-remind-in").value;
+  if (due) addNoDue = false;
   const dl = document.getElementById("add-due-lbl"), rl = document.getElementById("add-remind-lbl");
-  document.getElementById("add-due").classList.toggle("on", !!due); document.getElementById("add-remind").classList.toggle("on", !!rem);
-  dl.innerHTML = due ? `📅 ${fmtDue(due)}<span class="x" data-x="due">×</span>` : "📅";
+  document.getElementById("add-due").classList.toggle("on", !!due || addNoDue); document.getElementById("add-remind").classList.toggle("on", !!rem);
+  dl.innerHTML = due ? `📅 ${fmtDue(due)}<span class="x" data-x="due">×</span>` : addNoDue ? `📅 期限なし<span class="x" data-x="due">×</span>` : "📅";
   rl.innerHTML = rem ? `⏰ ${fmtRemind(rem)}<span class="x" data-x="remind">×</span>` : "⏰";
 }
 ["add-due-in", "add-remind-in"].forEach(id => document.getElementById(id).addEventListener("change", () => { if (id === "add-remind-in" && document.getElementById(id).value) askNotifyPermission(); renderAddTools(); }));
 document.querySelector(".add .tools").addEventListener("click", e => {
   const x = e.target.closest("[data-x]");
-  if (x) { e.preventDefault(); e.stopPropagation(); document.getElementById(x.dataset.x === "due" ? "add-due-in" : "add-remind-in").value = ""; renderAddTools(); return; }
+  if (x) { e.preventDefault(); e.stopPropagation(); if (x.dataset.x === "due") addNoDue = false; document.getElementById(x.dataset.x === "due" ? "add-due-in" : "add-remind-in").value = ""; renderAddTools(); return; }
+  if (e.target.closest("#due-pop")) {
+    const b = e.target.closest("[data-due]"); if (!b) return; e.stopPropagation();
+    const inp = document.getElementById("add-due-in"); const k = b.dataset.due;
+    if (k === "pick") { document.getElementById("due-pop").hidden = true; try { if (inp.showPicker) inp.showPicker(); else inp.focus(); } catch (err) { inp.focus(); } return; }
+    addNoDue = k === "none"; inp.value = k === "today" ? todayStr() : k === "tomorrow" ? addDays(1) : k === "monday" ? nextMonday() : "";
+    document.getElementById("due-pop").hidden = true; renderAddTools(); return;
+  }
   const btn = e.target.closest(".tool"); if (!btn) return;
+  if (btn.id === "add-due") { e.stopPropagation(); const p = document.getElementById("due-pop"); p.hidden = !p.hidden; return; }
   const inp = btn.querySelector("input");
   try { if (inp.showPicker) inp.showPicker(); else inp.focus(); } catch (err) { inp.focus(); }
 });
