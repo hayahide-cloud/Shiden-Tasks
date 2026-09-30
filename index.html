@@ -324,6 +324,7 @@ const KEY = "shiden_tasks_v1", DEL_KEY = "shiden_tasks_deleted_v1", CFG_KEY = "s
 
 /* ---- バージョンと更新履歴（公開版が反映されているかの確認用。変更のたびに先頭へ追記する） ---- */
 const CHANGELOG = [
+  ["2026-09-30.14", "スマホも: タスク追加時に詳細を開かない"],
   ["2026-09-30.13", "PC: タスク追加時に詳細を開かず、続けて入力できるように"],
   ["2026-09-30.12", "スマホ: 一覧の上端で下に引っ張って離すと同期"],
   ["2026-09-30.11", "スマホ: 左端から右へスワイプで前の画面に戻れるように"],
@@ -619,8 +620,8 @@ function submitAdd() {
   const input = document.getElementById("add-input");
   const v = input.value.trim(); if (!v) return;
   const t = addTask(v); input.value = "";
-  // PCは詳細を開かず一覧に追加するだけ（連続入力を優先）。スマホは詳細を開いてAIの質問を見せる
-  if (isMobile()) selectedId = t.id; else { input.focus(); }
+  // 追加時は詳細を開かず一覧に足すだけ（PC・スマホ共通）。AIの問い返しは裏で走り、行に「⚡ 回答待ち」が付く
+  if (!isMobile()) input.focus(); // PCは続けて入力できるようフォーカスを戻す
   render();
   if (getCfg().openai) aiAsk(t); // APIキーがあれば登録直後にAIが内容を確認しに来る
 }
