@@ -199,6 +199,10 @@
   .ai .status { font-size: 12px; color: var(--muted); margin-top: 6px; }
   .ai .status:empty { display: none; }
   .ai .status.err { color: var(--bad); }
+  /* 引っ張って同期（スマホ）: スクロール領域の上に出るインジケータ */
+  .ptr { height: 0; overflow: hidden; display: flex; align-items: flex-end; justify-content: center; font-size: 12px; color: var(--muted); transition: height .2s; }
+  .ptr.armed { color: var(--accent-hi); }
+  .ptr.busy { height: 36px !important; }
   .spin { display: inline-block; width: 12px; height: 12px; border: 2px solid var(--muted); border-top-color: var(--accent-hi); border-radius: 50%; animation: sp 1s linear infinite; vertical-align: -2px; margin-right: 6px; }
   @keyframes sp { to { transform: rotate(360deg); } }
 
@@ -282,6 +286,7 @@
   <div class="app" id="app">
     <!-- サイドバー -->
     <aside class="side" id="side">
+      <div class="ptr" id="ptr-side"></div>
       <ul class="nav" id="nav"></ul>
       <div class="newlist-wrap">
         <button class="newlist-btn" id="side-toggle" type="button"><span>＋</span>新しいリスト</button>
@@ -300,7 +305,7 @@
             <button id="list-delete" type="button" class="danger">リストの削除</button>
           </div></div>
       </div>
-      <div class="tasks-scroll" id="tasks-scroll"><ul class="tasks" id="tasks"></ul></div>
+      <div class="tasks-scroll" id="tasks-scroll"><div class="ptr" id="ptr-main"></div><ul class="tasks" id="tasks"></ul></div>
       <div class="add"><span class="plus">＋</span><input id="add-input" placeholder="タスクの追加（AIが内容を確認します）" enterkeyhint="done"><button class="go" id="add-go" type="button">追加</button></div>
     </section>
 
@@ -319,6 +324,7 @@ const KEY = "shiden_tasks_v1", DEL_KEY = "shiden_tasks_deleted_v1", CFG_KEY = "s
 
 /* ---- バージョンと更新履歴（公開版が反映されているかの確認用。変更のたびに先頭へ追記する） ---- */
 const CHANGELOG = [
+  ["2026-09-30.12", "スマホ: 一覧の上端で下に引っ張って離すと同期"],
   ["2026-09-30.11", "スマホ: 左端から右へスワイプで前の画面に戻れるように"],
   ["2026-09-30.10", "同期エラーに原因のヒントを表示（PUT 404 など）"],
   ["2026-09-30.9", "設定を独立した全画面ページに変更"],
@@ -771,6 +777,39 @@ document.getElementById("gh-sync").addEventListener("click", sync);
     else node.style.transform = "";
     cur = null; active = false;
   });
+})();
+
+/* ---- スマホ: 一覧の上端で下に引っ張って離すと同期（Pull to Refresh） ---- */
+(function () {
+  const THRESH = 64;
+  function attach(scrollEl, ptr) {
+    let sy = 0, pulling = false, dist = 0;
+    scrollEl.addEventListener("touchstart", e => {
+      if (!isMobile() || scrollEl.scrollTop > 0 || !cfgOk(getCfg())) { pulling = false; return; }
+      sy = e.touches[0].clientY; pulling = true; dist = 0;
+    }, { passive: true });
+    scrollEl.addEventListener("touchmove", e => {
+      if (!pulling) return;
+      const dy = e.touches[0].clientY - sy;
+      if (dy <= 0 || scrollEl.scrollTop > 0) { ptr.style.height = "0"; return; }
+      dist = Math.min(dy / 2, 96);
+      ptr.style.transition = "none"; ptr.style.height = dist + "px";
+      ptr.classList.toggle("armed", dist >= THRESH);
+      ptr.textContent = dist >= THRESH ? "離して同期" : "↓ 引っ張って同期";
+    }, { passive: true });
+    scrollEl.addEventListener("touchend", async () => {
+      if (!pulling) return; pulling = false;
+      ptr.style.transition = "";
+      if (dist >= THRESH) {
+        ptr.classList.add("busy"); ptr.innerHTML = "<span class='spin'></span>同期中…";
+        await sync();
+        ptr.textContent = statusEl.textContent;
+        setTimeout(() => { ptr.classList.remove("busy", "armed"); ptr.style.height = "0"; }, 700);
+      } else { ptr.classList.remove("armed"); ptr.style.height = "0"; }
+    });
+  }
+  attach(document.getElementById("nav"), document.getElementById("ptr-side"));
+  attach(document.getElementById("tasks-scroll"), document.getElementById("ptr-main"));
 })();
 
 // PCは「今日の予定」を開いた状態で起動。スマホはリスト一覧（ホーム）から
