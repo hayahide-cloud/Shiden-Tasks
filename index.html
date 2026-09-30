@@ -539,6 +539,7 @@ const KEY = "shiden_tasks_v1", DEL_KEY = "shiden_tasks_deleted_v1", CFG_KEY = "s
 
 /* ---- バージョンと更新履歴（公開版が反映されているかの確認用。変更のたびに先頭へ追記する） ---- */
 const CHANGELOG = [
+  ["2026-09-30.104", "今日の並び: 単純・軽いタスク（確認／対応／返信・短時間）を始業側に、重いタスクを後ろに（AI・既定の両方）"],
   ["2026-09-30.103", "AIで見積もり＆並べ替え: 所要時間と同時に、期限が今日以前を先頭に保ちつつ系統の似たタスクを隣接させた順序を適用"],
   ["2026-09-30.102", "既定の就業時間を 10:00〜19:00・休憩60分に。期限が先のタスクは終業までに収まるときだけ配置し、収まらなければ「今日は入らない」に分ける"],
   ["2026-09-30.101", "今日の時間配分: 期限が近い順に並べ、▲▼で手動並べ替え、✕で今日から外す（期限が今日以前なら次の営業日に延期）"],
@@ -744,7 +745,10 @@ function todayExcl() { try { const o = JSON.parse(localStorage.getItem(EXCL_KEY)
 // 今日ページの並び: 期限が近い順（超過が先、期限なしは後）→ 重要度が高い順。手動で並べ替えた日は todayPos を優先
 function todayOrder(open) {
   const td = todayStr();
-  const base = [...open].sort((a, b) => { const x = a.due || "9", y = b.due || "9"; return x.localeCompare(y) || ((b.priority || 0) - (a.priority || 0)) || a.ct - b.ct; });
+  // 既定の並び: 期限が近い順 → 軽い種別（確認／対応／返信）を先 → 重要度が高い順
+  const LIGHT = new Set(["確認", "対応", "返信"]);
+  const light = t => (t.tags || []).some(g => LIGHT.has(g)) ? 0 : 1;
+  const base = [...open].sort((a, b) => { const x = a.due || "9", y = b.due || "9"; return x.localeCompare(y) || (light(a) - light(b)) || ((b.priority || 0) - (a.priority || 0)) || a.ct - b.ct; });
   const pos = t => (t.todayPos && t.todayPos.d === td) ? t.todayPos.n : null;
   if (!base.some(t => pos(t) != null)) return base;
   return base.map((t, i) => [t, pos(t) != null ? pos(t) : 1000 + i]).sort((a, b) => a[1] - b[1]).map(x => x[0]);
@@ -783,7 +787,8 @@ const SYS_EST = `あなたはADHD特性のある人の「今日の段取り」�
 1) 所要時間の見積もり: est が未設定のタスクについて、集中して取り組んだ場合の現実的な所要時間を分単位（5分刻み、5〜240）で。返信や確認は短め、成果物作成や検討は長め
 2) 実行順の提案（order に全タスクの id を実行順で並べる）:
 - 「期限が今日以前」のタスク（must=true）は必ず先頭側にまとめる（超過→今日の順）。must=false はその後
-- その制約の中で、系統の似たタスクを隣接させてまとめる（同じツール・同じ種別。例: Outlook の返信同士、Teams の連絡同士、Excel 作業同士）。切り替えコストを減らすため
+- must の中でも、must 以外の中でも、単純で軽いタスク（種別が 確認／対応／返信、所要時間が短いもの）を始業側（先頭側）に置き、頭を使う重いタスク（成果物作成／検討／調査）は後ろに置く。ウォームアップとして軽いものから片付ける
+- そのうえで、系統の似たタスクを隣接させてまとめる（同じツール・同じ種別。例: Outlook の返信同士、Teams の連絡同士、Excel 作業同士）。切り替えコストを減らすため
 - 似た系統のまとまりの中では短いものを先に
 - 出力は次のJSONのみ
 {"estimates":[{"id":"…","minutes":30}],"order":["id1","id2",…]}`;
