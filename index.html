@@ -133,6 +133,7 @@
   .tag.ch { background: rgba(56,189,248,0.14); color: #7dd3fc; border-color: rgba(56,189,248,0.3); }
   .tag.ty { background: rgba(52,211,153,0.14); color: #6ee7b7; border-color: rgba(52,211,153,0.3); }
   .tag.fr { background: var(--surface-3); color: var(--ink-2); border-color: var(--grid); }
+  .tag.ex { background: rgba(244,114,182,0.14); color: #f9a8d4; border-color: rgba(244,114,182,0.35); }
   .task .meta .tag { margin-right: 2px; }
   .task .meta .tag + .tag::before, .task .meta span + .tag::before, .task .meta .tag + span::before { content: none; margin: 0; }
   .tagbar { display: flex; gap: 6px; flex-wrap: wrap; padding: 0 28px 10px; }
@@ -451,6 +452,7 @@ const KEY = "shiden_tasks_v1", DEL_KEY = "shiden_tasks_deleted_v1", CFG_KEY = "s
 
 /* ---- バージョンと更新履歴（公開版が反映されているかの確認用。変更のたびに先頭へ追記する） ---- */
 const CHANGELOG = [
+  ["2026-09-30.67", "「プライベート」タグ（第3グループ・桃色）を追加"],
   ["2026-09-30.66", "ツールタグに「電話」を追加"],
   ["2026-09-30.65", "リスト分けを廃止（サイドバーは「タスク」のみ、スマホは最初からタスク一覧）"],
   ["2026-09-30.64", "種別タグに「調査」を追加（手配→調査→検討の順）"],
@@ -525,9 +527,10 @@ const SMART = { all: "タスク" }; // スマートリストは「タスク」�
 const SMART_ICO = { all: "🏠" };
 function prioBars(v, lg) { return `<span class="prio ${lg ? "lg" : ""}" data-act="prio" data-v="${v || 0}" title="優先度 ${v || 0}/5（バーをクリックで設定）">${[1, 2, 3, 4, 5].map(p => `<i data-p="${p}"></i>`).join("")}</span>`; }
 const TAG_CH = ["Teams", "Outlook", "LINE", "電話", "Excel", "Word", "PP", "Web", "その他ツール"];  // どこの案件か／何で作るか（PP＝PowerPoint）
-const TAG_TY = ["対応", "返信", "新規文章作成", "成果物作成", "手配", "調査", "検討", "その他種別"];  // 表示順  // どんな仕事か（対応＝アンケート回答・申請など、考えずにサッと片付ける軽い作業）
+const TAG_TY = ["対応", "返信", "新規文章作成", "成果物作成", "手配", "調査", "検討", "その他種別"];  // 表示順
+const TAG_EX = ["プライベート"];  // 第3グループ（桃色）。仕事以外の区分。不完全判定には関係しない  // どんな仕事か（対応＝アンケート回答・申請など、考えずにサッと片付ける軽い作業）
 const TAG_RENAME = { "実施": "対応", "文章": "新規文章作成", "文章作成": "新規文章作成", "作成": "成果物作成" }; // 旧名称の移行（読み込み時に置換）
-function tagClass(tag) { return TAG_CH.includes(tag) ? "ch" : TAG_TY.includes(tag) ? "ty" : "fr"; }
+function tagClass(tag) { return TAG_CH.includes(tag) ? "ch" : TAG_TY.includes(tag) ? "ty" : TAG_EX.includes(tag) ? "ex" : "fr"; }
 function tagChip(tag, on) { return `<span class="tag ${tagClass(tag)} ${on ? "on" : ""}" data-tag="${esc(tag)}">${esc(tag)}</span>`; }
 let tagFilter = null; // 一覧のタグ絞り込み（null=すべて）
 // 並べ替え（端末ごとに記憶）。key: priority / due / created、dir: desc / asc
@@ -551,7 +554,7 @@ function isOverdue(t) { return !!t.due && !t.done && t.due < todayStr(); } // �
 function tagIncomplete(t) { const g = t.tags || []; return !g.some(x => TAG_CH.includes(x)) || !g.some(x => TAG_TY.includes(x)) || !(t.priority > 0) || !(t.due || t.noDue) || isOverdue(t); }
 const INCOMPLETE = "__incomplete", TODAY = "__today", HIGH = "__high"; // フィルタの特別値（不完全／今日締め切り＝期限が今日以前の未完了）
 function sortTags(tags) {
-  const rank = g => TAG_CH.includes(g) ? TAG_CH.indexOf(g) : TAG_TY.includes(g) ? 100 + TAG_TY.indexOf(g) : 200;
+  const rank = g => TAG_CH.includes(g) ? TAG_CH.indexOf(g) : TAG_TY.includes(g) ? 100 + TAG_TY.indexOf(g) : TAG_EX.includes(g) ? 150 + TAG_EX.indexOf(g) : 200;
   return [...(tags || [])].sort((a, b) => rank(a) - rank(b) || a.localeCompare(b, "ja"));
 }
 
@@ -649,14 +652,14 @@ function renderList() {
   // タグバー: 表示中のリストに存在するタグだけを出す
   const counts = {}; all.forEach(t => (t.tags || []).forEach(g => counts[g] = (counts[g] || 0) + 1));
   // 定型タグは常に並べる（0件は薄く）。自由タグはその一覧に存在するものだけ
-  const tagsHere = [...TAG_CH, ...TAG_TY, ...Object.keys(counts).filter(g => !TAG_CH.includes(g) && !TAG_TY.includes(g)).sort()];
+  const tagsHere = [...TAG_CH, ...TAG_TY, ...TAG_EX, ...Object.keys(counts).filter(g => !TAG_CH.includes(g) && !TAG_TY.includes(g) && !TAG_EX.includes(g)).sort()];
   const chipOf = g => tagChip(g, tagFilter === g).replace('class="tag', `class="tag ${counts[g] ? "" : "zero"}`);
-  const free = tagsHere.filter(g => !TAG_CH.includes(g) && !TAG_TY.includes(g));
+  const free = tagsHere.filter(g => !TAG_CH.includes(g) && !TAG_TY.includes(g) && !TAG_EX.includes(g));
   const nInc = all.filter(t => !t.done && tagIncomplete(t)).length;
   const nToday = all.filter(t => !t.done && t.due && t.due <= todayStr()).length;
   const nHigh = all.filter(t => !t.done && (t.priority || 0) >= 4).length;
   const incChip = `<span class="tag warn ${tagFilter === INCOMPLETE ? "on" : ""} ${nInc ? "" : "zero"}" data-tag="${INCOMPLETE}" title="ツール・種別・優先度・期限のどれかが未設定、または期限超過のタスク">⚠ 不完全${nInc ? " " + nInc : ""}</span><span class="tag today ${tagFilter === TODAY ? "on" : ""} ${nToday ? "" : "zero"}" data-tag="${TODAY}" title="期限が今日のタスク（超過分も含む）">📅 今日締切${nToday ? " " + nToday : ""}</span><span class="tag high ${tagFilter === HIGH ? "on" : ""} ${nHigh ? "" : "zero"}" data-tag="${HIGH}" title="優先度4以上のタスク">📶 優先度高${nHigh ? " " + nHigh : ""}</span><span class="sep"></span>`;
-  document.getElementById("tagbar").innerHTML = incChip + TAG_CH.map(chipOf).join("") + `<span class="sep"></span>` + TAG_TY.map(chipOf).join("") + (free.length ? `<span class="sep"></span>` + free.map(chipOf).join("") : "") + (tagFilter ? `<button class="clear" data-tag="">× 絞り込み解除</button>` : "");
+  document.getElementById("tagbar").innerHTML = incChip + TAG_CH.map(chipOf).join("") + `<span class="sep"></span>` + TAG_TY.map(chipOf).join("") + `<span class="sep"></span>` + TAG_EX.map(chipOf).join("") + (free.length ? `<span class="sep"></span>` + free.map(chipOf).join("") : "") + (tagFilter ? `<button class="clear" data-tag="">× 絞り込み解除</button>` : "");
   const ts = tagFilter === INCOMPLETE ? all.filter(tagIncomplete) : tagFilter === TODAY ? all.filter(t => t.due && t.due <= todayStr()) : tagFilter === HIGH ? all.filter(t => (t.priority || 0) >= 4) : tagFilter ? all.filter(t => (t.tags || []).includes(tagFilter)) : all;
   const open = sortOpen(ts.filter(t => !t.done));
   document.getElementById("sort-lbl").textContent = SORT_LBL[sortCfg.key] + "・" + DIR_LBL[sortCfg.key][sortCfg.dir === "asc" ? 1 : 0];
@@ -714,7 +717,8 @@ function renderDetail() {
       <div class="dcard dtags">
         <div class="grp"><span class="lbl">🏷 ツール</span>${TAG_CH.map(g => tagChip(g, (t.tags || []).includes(g))).join("")}</div>
         <div class="grp"><span class="lbl">種別</span>${TAG_TY.map(g => tagChip(g, (t.tags || []).includes(g))).join("")}</div>
-        ${(() => { const fr = (t.tags || []).filter(g => !TAG_CH.includes(g) && !TAG_TY.includes(g)); return fr.length ? `<div class="grp"><span class="lbl">旧タグ</span>${fr.map(g => tagChip(g, true)).join("")}<span style="font-size:11px">（タップで削除）</span></div>` : ""; })()}
+        <div class="grp"><span class="lbl">区分</span>${TAG_EX.map(g => tagChip(g, (t.tags || []).includes(g))).join("")}</div>
+        ${(() => { const fr = (t.tags || []).filter(g => !TAG_CH.includes(g) && !TAG_TY.includes(g) && !TAG_EX.includes(g)); return fr.length ? `<div class="grp"><span class="lbl">旧タグ</span>${fr.map(g => tagChip(g, true)).join("")}<span style="font-size:11px">（タップで削除）</span></div>` : ""; })()}
       </div>
       <div class="dcard">
         <div class="drow ${t.due || t.noDue ? "on" : ""} ${isOverdue(t) ? "overdue" : ""}"><span class="ico">📅</span><input type="date" id="d-due" value="${esc(t.due)}" title="期限日">${t.due ? `<button class="clear" data-clear="due" title="期限を削除">×</button>` : ""}</div>
