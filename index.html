@@ -295,6 +295,9 @@
       <button class="btn" id="cfg-save" type="button">保存して同期</button>
       <button class="linkbtn danger" id="cfg-clear" type="button">この端末の設定を削除</button>
     </div>
+    <h3>通知</h3>
+    <label>⏰ の時刻になると OS の通知（Windows の通知センター／iPhone はホーム画面から起動した場合）で知らせます。ページを開いている間だけ動きます（タブが裏や最小化でも可。ブラウザを終了していると鳴りません）。</label>
+    <div class="cfg-actions"><button class="linkbtn" id="notif-test" type="button">通知の許可と動作確認</button><span class="hint" id="notif-state"></span></div>
     <h3>更新履歴</h3>
     <label>表示中のページのバージョンに ● が付きます。公開後に古い画面が出る場合はブラウザのキャッシュなので再読み込みしてください。</label>
     <ul class="changelog" id="changelog"></ul>
@@ -348,6 +351,7 @@ const KEY = "shiden_tasks_v1", DEL_KEY = "shiden_tasks_deleted_v1", CFG_KEY = "s
 
 /* ---- バージョンと更新履歴（公開版が反映されているかの確認用。変更のたびに先頭へ追記する） ---- */
 const CHANGELOG = [
+  ["2026-09-30.20", "設定に「通知の許可と動作確認」ボタンと状態表示を追加"],
   ["2026-09-30.19", "追加バーを一覧の下の固定帯に（タスクが裏に透けない）"],
   ["2026-09-30.18", "追加バーに 📅 期限・⏰ 通知ボタンを追加。詳細にも通知欄。時刻になるとOS通知またはトースト（アプリを開いている間のみ）"],
   ["2026-09-30.17", "PC: タスクが増えると一覧をスクロールできない不具合を修正"],
@@ -691,6 +695,19 @@ document.querySelector(".add .tools").addEventListener("click", e => {
    ・OSの通知（Notification API）を許可していればOS通知、無ければ画面内トースト
    ・Web Push（サーバー要）は使わないため、アプリを閉じている間は鳴らない
    ================================================================ */
+function notifState() {
+  const el = document.getElementById("notif-state"); if (!el) return;
+  if (!("Notification" in window)) { el.textContent = "この環境は OS 通知に対応していません（画面内トーストのみ）"; return; }
+  el.textContent = { granted: "許可済み: OS 通知が使えます", denied: "ブロック中: ブラウザのサイト設定で通知を許可に戻してください", default: "未設定: 上のボタンで許可してください" }[Notification.permission];
+}
+document.getElementById("notif-test").addEventListener("click", async () => {
+  if (!("Notification" in window)) return notifState();
+  if (Notification.permission === "default") await Notification.requestPermission();
+  notifState();
+  if (Notification.permission === "granted") new Notification("Shiden Tasks", { body: "通知のテストです。この表示が出れば OS 通知が有効です", icon: "icon-192.png" });
+  else toast("⏰ 画面内トーストのテスト（OS 通知は未許可）");
+});
+document.getElementById("gh-config").addEventListener("click", notifState);
 function askNotifyPermission() { if ("Notification" in window && Notification.permission === "default") Notification.requestPermission(); }
 function toast(msg) { const el = document.createElement("div"); el.className = "toast"; el.textContent = msg; document.body.appendChild(el); setTimeout(() => el.remove(), 6000); }
 function checkReminders() {
