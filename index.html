@@ -107,6 +107,10 @@
   .popover { position: absolute; right: 0; top: 36px; z-index: 20; background: var(--surface-2); border: 1px solid var(--grid); border-radius: 6px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); min-width: 170px; padding: 4px; }
   .popover button { display: block; width: 100%; text-align: left; padding: 9px 12px; background: transparent; border: none; color: var(--ink); font-size: 13.5px; border-radius: 4px; cursor: pointer; }
   .popover button.danger { color: var(--bad); }
+  .popover button.on { color: var(--accent-hi); }
+  .popover button.on::after { content: " ✓"; }
+  #sort-btn { font-size: 12.5px; color: var(--muted); }
+  #sort-btn:hover { color: #fff; }
   .tasks-scroll { flex: 1; min-height: 0; overflow: auto; padding: 0 28px 12px; }
   .tasks { list-style: none; display: flex; flex-direction: column; gap: 2px; }
   .task { display: flex; align-items: center; gap: 14px; background: var(--row); border-radius: 4px; padding: 0 14px; min-height: 52px; cursor: pointer; border: 1px solid transparent; }
@@ -380,6 +384,15 @@
       <div class="listhead">
         <button class="ibtn back" id="back" type="button" title="リスト一覧へ">‹</button>
         <div class="tt"><h2 id="list-title"></h2><div class="date" id="list-date"></div></div>
+        <div class="menu-wrap"><button class="ibtn" id="sort-btn" type="button" title="並べ替え">⇅ <span id="sort-lbl"></span></button>
+          <div class="popover" id="sort-pop" hidden>
+            <button data-sort="priority" type="button">優先度</button>
+            <button data-sort="due" type="button">期限</button>
+            <button data-sort="created" type="button">追加日</button>
+            <div style="height:1px;background:var(--grid);margin:4px 0"></div>
+            <button data-dir="desc" type="button">降順 ↓</button>
+            <button data-dir="asc" type="button">昇順 ↑</button>
+          </div></div>
         <div class="menu-wrap"><button class="ibtn" id="list-menu" type="button" title="リストのオプション">…</button>
           <div class="popover" id="list-pop" hidden>
             <button id="list-rename" type="button">名前の変更</button>
@@ -413,6 +426,7 @@ const KEY = "shiden_tasks_v1", DEL_KEY = "shiden_tasks_deleted_v1", CFG_KEY = "s
 
 /* ---- バージョンと更新履歴（公開版が反映されているかの確認用。変更のたびに先頭へ追記する） ---- */
 const CHANGELOG = [
+  ["2026-09-30.51", "並べ替え: 優先度／期限／追加日 × 降順／昇順（端末ごとに記憶）"],
   ["2026-09-30.50", "「今日の予定」を廃止。起動時は「タスク」一覧"],
   ["2026-09-30.49", "自由タグの追加を廃止（定型のツール・種別のみ）。既存の自由タグは削除のみ可"],
   ["2026-09-30.48", "詳細のタイトル欄を最初から2行分の高さに固定"],
@@ -476,6 +490,19 @@ const TAG_RENAME = { "実施": "対応", "文章": "新規文章作成", "文章
 function tagClass(tag) { return TAG_CH.includes(tag) ? "ch" : TAG_TY.includes(tag) ? "ty" : "fr"; }
 function tagChip(tag, on) { return `<span class="tag ${tagClass(tag)} ${on ? "on" : ""}" data-tag="${esc(tag)}">${esc(tag)}</span>`; }
 let tagFilter = null; // 一覧のタグ絞り込み（null=すべて）
+// 並べ替え（端末ごとに記憶）。key: priority / due / created、dir: desc / asc
+const SORT_KEY = "shiden_tasks_sort";
+let sortCfg = (() => { try { return Object.assign({ key: "priority", dir: "desc" }, JSON.parse(localStorage.getItem(SORT_KEY)) || {}); } catch (e) { return { key: "priority", dir: "desc" }; } })();
+const SORT_LBL = { priority: "優先度", due: "期限", created: "追加日" };
+function sortOpen(list) {
+  const dir = sortCfg.dir === "asc" ? 1 : -1;
+  const cmp = {
+    priority: (a, b) => ((a.priority || 0) - (b.priority || 0)) * dir || (a.due || "9").localeCompare(b.due || "9") || b.ct - a.ct,
+    due: (a, b) => { const x = a.due || "", y = b.due || ""; if (!x && !y) return b.ct - a.ct; if (!x) return 1; if (!y) return -1; return x.localeCompare(y) * dir || ((b.priority || 0) - (a.priority || 0)); }, // 期限なしは常に末尾
+    created: (a, b) => (a.ct - b.ct) * dir,
+  }[sortCfg.key];
+  return list.sort(cmp);
+}
 // 表示順は常に ツール（青）→ 種別（緑）→ 自由タグ。付けた順序に依存させない
 // ツール（青）・種別（緑）・優先度のどれかが未設定なら「不完全」
 function tagIncomplete(t) { const g = t.tags || []; return !g.some(x => TAG_CH.includes(x)) || !g.some(x => TAG_TY.includes(x)) || !(t.priority > 0); }
@@ -588,7 +615,10 @@ function renderList() {
   const incChip = `<span class="tag warn ${tagFilter === INCOMPLETE ? "on" : ""} ${nInc ? "" : "zero"}" data-tag="${INCOMPLETE}" title="ツール・種別・優先度のどれかが未設定のタスク">⚠ 不完全${nInc ? " " + nInc : ""}</span><span class="sep"></span>`;
   document.getElementById("tagbar").innerHTML = incChip + TAG_CH.map(chipOf).join("") + `<span class="sep"></span>` + TAG_TY.map(chipOf).join("") + (free.length ? `<span class="sep"></span>` + free.map(chipOf).join("") : "") + (tagFilter ? `<button class="clear" data-tag="">× 絞り込み解除</button>` : "");
   const ts = tagFilter === INCOMPLETE ? all.filter(tagIncomplete) : tagFilter ? all.filter(t => (t.tags || []).includes(tagFilter)) : all;
-  const open = ts.filter(t => !t.done).sort((a, b) => ((b.priority || 0) - (a.priority || 0)) || (a.due || "9").localeCompare(b.due || "9") || b.ct - a.ct);
+  const open = sortOpen(ts.filter(t => !t.done));
+  document.getElementById("sort-lbl").textContent = SORT_LBL[sortCfg.key] + (sortCfg.dir === "asc" ? " ↑" : " ↓");
+  document.querySelectorAll("#sort-pop [data-sort]").forEach(b => b.classList.toggle("on", b.dataset.sort === sortCfg.key));
+  document.querySelectorAll("#sort-pop [data-dir]").forEach(b => b.classList.toggle("on", b.dataset.dir === sortCfg.dir));
   const done = ts.filter(t => t.done).sort((a, b) => b.mt - a.mt);
   const td = todayStr();
   const row = t => {
@@ -878,6 +908,14 @@ document.getElementById("newlist-add").addEventListener("click", () => {
 document.getElementById("newlist").addEventListener("keydown", e => { if (e.key === "Enter") document.getElementById("newlist-add").click(); if (e.key === "Escape") { e.target.value = ""; document.getElementById("side").classList.remove("open"); } });
 document.getElementById("newlist").addEventListener("blur", () => { setTimeout(() => { if (!document.getElementById("newlist").value.trim()) document.getElementById("side").classList.remove("open"); }, 150); });
 
+// 並べ替えメニュー
+document.getElementById("sort-btn").addEventListener("click", e => { e.stopPropagation(); document.getElementById("list-pop").hidden = true; const p = document.getElementById("sort-pop"); p.hidden = !p.hidden; });
+document.getElementById("sort-pop").addEventListener("click", e => {
+  e.stopPropagation(); const b = e.target.closest("button"); if (!b) return;
+  if (b.dataset.sort) sortCfg.key = b.dataset.sort; if (b.dataset.dir) sortCfg.dir = b.dataset.dir;
+  localStorage.setItem(SORT_KEY, JSON.stringify(sortCfg)); document.getElementById("sort-pop").hidden = true; render();
+});
+document.addEventListener("click", () => { document.getElementById("sort-pop").hidden = true; });
 // リストの「…」メニュー（自作リストのみ: 名前変更／削除）
 document.getElementById("list-menu").addEventListener("click", e => { e.stopPropagation(); const p = document.getElementById("list-pop"); p.hidden = !p.hidden; });
 document.addEventListener("click", () => { document.getElementById("list-pop").hidden = true; });
