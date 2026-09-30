@@ -132,6 +132,7 @@
   .tagbar .tag { cursor: pointer; opacity: .55; padding: 5px 10px; font-size: 12px; }
   .tagbar .tag.zero { opacity: .25; }
   .tagbar .sep { width: 1px; background: var(--grid); margin: 2px 2px; }
+  .tag.warn { background: rgba(251,191,36,0.14); color: var(--warn); border-color: rgba(251,191,36,0.35); }
   .tagbar .tag.on, .tagbar .tag:not(.on):active { opacity: 1; box-shadow: 0 0 0 1px currentColor inset; }
   .tagbar .clear { font-size: 12px; color: var(--muted); background: none; border: none; cursor: pointer; }
   .dtags { padding: 10px 14px; display: flex; flex-direction: column; gap: 8px; }
@@ -386,6 +387,7 @@ const KEY = "shiden_tasks_v1", DEL_KEY = "shiden_tasks_deleted_v1", CFG_KEY = "s
 
 /* ---- バージョンと更新履歴（公開版が反映されているかの確認用。変更のたびに先頭へ追記する） ---- */
 const CHANGELOG = [
+  ["2026-09-30.38", "ツール（青）と種別（緑）が揃っていないタスクを「⚠ タグ不完全」として表示・絞り込み"],
   ["2026-09-30.37", "タスク追加時にAIを自動起動しない（詳細の「AIに相談する」で発動）。タグ・メモをAIに渡す"],
   ["2026-09-30.36", "「文章作成」を「新規文章作成」に改名（自動移行）。ツール・種別に「その他ツール」「その他種別」を追加"],
   ["2026-09-30.35", "種別タグに「返信」を追加。順を 対応→返信→文章作成→成果物作成→手配→検討 に"],
@@ -436,6 +438,9 @@ function tagClass(tag) { return TAG_CH.includes(tag) ? "ch" : TAG_TY.includes(ta
 function tagChip(tag, on) { return `<span class="tag ${tagClass(tag)} ${on ? "on" : ""}" data-tag="${esc(tag)}">${esc(tag)}</span>`; }
 let tagFilter = null; // 一覧のタグ絞り込み（null=すべて）
 // 表示順は常に ツール（青）→ 種別（緑）→ 自由タグ。付けた順序に依存させない
+// 青（ツール）と緑（種別）が揃っていないタスクは「タグ不完全」
+function tagIncomplete(t) { const g = t.tags || []; return !g.some(x => TAG_CH.includes(x)) || !g.some(x => TAG_TY.includes(x)); }
+const INCOMPLETE = "__incomplete"; // フィルタの特別値
 function sortTags(tags) {
   const rank = g => TAG_CH.includes(g) ? TAG_CH.indexOf(g) : TAG_TY.includes(g) ? 100 + TAG_TY.indexOf(g) : 200;
   return [...(tags || [])].sort((a, b) => rank(a) - rank(b) || a.localeCompare(b, "ja"));
@@ -539,8 +544,10 @@ function renderList() {
   const tagsHere = [...TAG_CH, ...TAG_TY, ...Object.keys(counts).filter(g => !TAG_CH.includes(g) && !TAG_TY.includes(g)).sort()];
   const chipOf = g => tagChip(g, tagFilter === g).replace('class="tag', `class="tag ${counts[g] ? "" : "zero"}`);
   const free = tagsHere.filter(g => !TAG_CH.includes(g) && !TAG_TY.includes(g));
-  document.getElementById("tagbar").innerHTML = TAG_CH.map(chipOf).join("") + `<span class="sep"></span>` + TAG_TY.map(chipOf).join("") + (free.length ? `<span class="sep"></span>` + free.map(chipOf).join("") : "") + (tagFilter ? `<button class="clear" data-tag="">× 絞り込み解除</button>` : "");
-  const ts = tagFilter ? all.filter(t => (t.tags || []).includes(tagFilter)) : all;
+  const nInc = all.filter(t => !t.done && tagIncomplete(t)).length;
+  const incChip = `<span class="tag warn ${tagFilter === INCOMPLETE ? "on" : ""} ${nInc ? "" : "zero"}" data-tag="${INCOMPLETE}" title="ツール（青）と種別（緑）が揃っていないタスク">⚠ タグ不完全${nInc ? " " + nInc : ""}</span><span class="sep"></span>`;
+  document.getElementById("tagbar").innerHTML = incChip + TAG_CH.map(chipOf).join("") + `<span class="sep"></span>` + TAG_TY.map(chipOf).join("") + (free.length ? `<span class="sep"></span>` + free.map(chipOf).join("") : "") + (tagFilter ? `<button class="clear" data-tag="">× 絞り込み解除</button>` : "");
+  const ts = tagFilter === INCOMPLETE ? all.filter(tagIncomplete) : tagFilter ? all.filter(t => (t.tags || []).includes(tagFilter)) : all;
   const open = ts.filter(t => !t.done).sort((a, b) => (b.important - a.important) || (a.due || "9").localeCompare(b.due || "9") || b.ct - a.ct);
   const done = ts.filter(t => t.done).sort((a, b) => b.mt - a.mt);
   const td = todayStr();
@@ -554,6 +561,7 @@ function renderList() {
     if (t.steps.length) meta.push(`<span>${t.steps.filter(s => s.done).length}/${t.steps.length}</span>`);
     if (t.note) meta.push(`<span>📝</span>`);
     sortTags(t.tags).forEach(g => meta.push(tagChip(g)));
+    if (!t.done && tagIncomplete(t)) meta.push(`<span class="tag warn" title="ツールと種別の両方を付けてください">⚠</span>`);
     if (t.ai && t.ai.draft) meta.push(`<span class="aim">⚡ 下書きあり</span>`);
     else if (t.ai && t.ai.questions && !t.ai.draft) meta.push(`<span class="aim">⚡ 回答待ち</span>`);
     return `<li class="task ${t.done ? "done" : ""} ${selectedId === t.id ? "sel" : ""}" data-id="${t.id}">
