@@ -72,7 +72,8 @@
   .linkbtn.danger { color: var(--muted); background: transparent; }
 
   /* ---- 3ペイン ---- */
-  .app { flex: 1; min-height: 0; display: grid; grid-template-columns: var(--side-w) 1fr 0; }
+  /* grid-template-rows を minmax(0,1fr) にしないと、タスクが増えたときにグリッド行が中身に合わせて伸びてページ外に溢れ、スクロールできなくなる */
+  .app { flex: 1; min-height: 0; display: grid; grid-template-columns: var(--side-w) 1fr 0; grid-template-rows: minmax(0, 1fr); overflow: hidden; }
   .app.has-detail { grid-template-columns: var(--side-w) 1fr var(--detail-w); }
 
   /* サイドバー */
@@ -93,7 +94,7 @@
   .newlist input { flex: 1; min-width: 0; font-size: 14px; background: var(--surface-2); color: var(--ink); border: 1px solid var(--accent); border-radius: 4px; padding: 7px 9px; outline: none; }
 
   /* メイン（タスク一覧） */
-  .main { min-width: 0; display: flex; flex-direction: column; position: relative; }
+  .main { min-width: 0; min-height: 0; display: flex; flex-direction: column; position: relative; }
   .main.myday { background: radial-gradient(900px 320px at 20% -10%, rgba(124,58,237,0.28), transparent 60%), var(--page); }
   .listhead { flex: none; display: flex; align-items: flex-start; gap: 10px; padding: 22px 28px 12px; }
   .listhead .back { display: none; }
@@ -334,6 +335,7 @@ const KEY = "shiden_tasks_v1", DEL_KEY = "shiden_tasks_deleted_v1", CFG_KEY = "s
 
 /* ---- バージョンと更新履歴（公開版が反映されているかの確認用。変更のたびに先頭へ追記する） ---- */
 const CHANGELOG = [
+  ["2026-09-30.17", "PC: タスクが増えると一覧をスクロールできない不具合を修正"],
   ["2026-09-30.16", "スマホ: タスクに触れたときの選択風ハイライトを廃止"],
   ["2026-09-30.15", "スマホ: 完了○のタップ判定を拡大（約50px四方）"],
   ["2026-09-30.14", "スマホも: タスク追加時に詳細を開かない"],
