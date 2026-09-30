@@ -386,6 +386,7 @@ const KEY = "shiden_tasks_v1", DEL_KEY = "shiden_tasks_deleted_v1", CFG_KEY = "s
 
 /* ---- バージョンと更新履歴（公開版が反映されているかの確認用。変更のたびに先頭へ追記する） ---- */
 const CHANGELOG = [
+  ["2026-09-30.33", "タグの表示順を常に ツール→種別→自由 に固定"],
   ["2026-09-30.32", "フィルタバーに定型タグを常時表示（0件は薄く）"],
   ["2026-09-30.31", "ツールタグに Excel / Word / PP を追加"],
   ["2026-09-30.30", "種別タグを「文章作成」「成果物作成」に改名（既存データは自動移行）"],
@@ -430,6 +431,11 @@ const TAG_RENAME = { "実施": "対応", "文章": "文章作成", "作成": "�
 function tagClass(tag) { return TAG_CH.includes(tag) ? "ch" : TAG_TY.includes(tag) ? "ty" : "fr"; }
 function tagChip(tag, on) { return `<span class="tag ${tagClass(tag)} ${on ? "on" : ""}" data-tag="${esc(tag)}">${esc(tag)}</span>`; }
 let tagFilter = null; // 一覧のタグ絞り込み（null=すべて）
+// 表示順は常に ツール（青）→ 種別（緑）→ 自由タグ。付けた順序に依存させない
+function sortTags(tags) {
+  const rank = g => TAG_CH.includes(g) ? TAG_CH.indexOf(g) : TAG_TY.includes(g) ? 100 + TAG_TY.indexOf(g) : 200;
+  return [...(tags || [])].sort((a, b) => rank(a) - rank(b) || a.localeCompare(b, "ja"));
+}
 
 function load() { try { return Object.assign({ tasks: [], lists: [] }, JSON.parse(localStorage.getItem(KEY)) || {}); } catch (e) { return { tasks: [], lists: [] }; } }
 function save(d) { localStorage.setItem(KEY, JSON.stringify(d)); }
@@ -543,7 +549,7 @@ function renderList() {
     if (t.remind && !t.done) meta.push(`<span class="${t.remindFired ? "" : "today"}">⏰ ${fmtRemind(t.remind)}</span>`);
     if (t.steps.length) meta.push(`<span>${t.steps.filter(s => s.done).length}/${t.steps.length}</span>`);
     if (t.note) meta.push(`<span>📝</span>`);
-    (t.tags || []).forEach(g => meta.push(tagChip(g)));
+    sortTags(t.tags).forEach(g => meta.push(tagChip(g)));
     if (t.ai && t.ai.draft) meta.push(`<span class="aim">⚡ 下書きあり</span>`);
     else if (t.ai && t.ai.questions && !t.ai.draft) meta.push(`<span class="aim">⚡ 回答待ち</span>`);
     return `<li class="task ${t.done ? "done" : ""} ${selectedId === t.id ? "sel" : ""}" data-id="${t.id}">
@@ -884,12 +890,12 @@ function bindDetail(t) {
   el.querySelector(".dtags").addEventListener("click", e => {
     const c = e.target.closest("[data-tag]"); if (!c) return;
     const g = c.dataset.tag; t.tags = t.tags || [];
-    t.tags = t.tags.includes(g) ? t.tags.filter(x => x !== g) : [...t.tags, g];
+    t.tags = sortTags(t.tags.includes(g) ? t.tags.filter(x => x !== g) : [...t.tags, g]);
     touch(t); render();
   });
   el.querySelector("#d-tag").addEventListener("keydown", e => {
     if (e.key !== "Enter") return; const v = e.target.value.trim(); if (!v) return;
-    t.tags = t.tags || []; if (!t.tags.includes(v)) t.tags.push(v); e.target.value = ""; touch(t); render();
+    t.tags = t.tags || []; if (!t.tags.includes(v)) t.tags.push(v); t.tags = sortTags(t.tags); e.target.value = ""; touch(t); render();
     setTimeout(() => document.getElementById("d-tag").focus(), 0);
   });
   el.querySelector("#d-delete").addEventListener("click", () => { if (confirm(`「${t.title}」を削除しますか？`)) removeTask(t.id); });
