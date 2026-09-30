@@ -416,7 +416,7 @@ document.getElementById("changelog").innerHTML = CHANGELOG.map(([v, m], i) => `<
 const SMART = { myday: "今日の予定", important: "重要", planned: "今後の予定", all: "タスク" };
 const SMART_ICO = { myday: "☀️", important: "⭐", planned: "📅", all: "🏠" };
 const TAG_CH = ["Teams", "Outlook", "LINE"];            // どこの案件か
-const TAG_TY = ["文章", "作成", "検討", "手配", "実施"];  // どんな仕事か（実施＝作業・行動そのもの）
+const TAG_TY = ["文章", "作成", "検討", "手配", "実施"];  // どんな仕事か（実施＝アンケート回答・申請など、考えずにサッと片付ける軽い作業）
 function tagClass(tag) { return TAG_CH.includes(tag) ? "ch" : TAG_TY.includes(tag) ? "ty" : "fr"; }
 function tagChip(tag, on) { return `<span class="tag ${tagClass(tag)} ${on ? "on" : ""}" data-tag="${esc(tag)}">${esc(tag)}</span>`; }
 let tagFilter = null; // 一覧のタグ絞り込み（null=すべて）
@@ -681,7 +681,7 @@ const SYS_ASK = `あなたは日本語のタスク管理アシスタントです
 - meeting: 会議や打ち合わせの日程調整
 - research: 予約・手配・購入・調べもの（例: ゴルフのセッティング、店の予約、旅行、備品の購入、比較検討）。この場合は同行者・希望日時・場所や地域・予算・条件を聞く
 - work: 自分で行う作業（資料作成、週報、確認作業など）。この場合は成果物・期限・材料を聞く
-さらに tags として、案件のチャネル（Teams / Outlook / LINE のいずれか。分からなければ入れない）と仕事の種別（文章=文を書く / 作成=資料や物を作る / 検討=考える・比較する / 手配=予約や調達 / 実施=作業や行動そのもの、のいずれか1つ）を付ける。
+さらに tags として、案件のチャネル（Teams / Outlook / LINE のいずれか。分からなければ入れない）と仕事の種別（文章=文を書く / 作成=資料や物を作る / 検討=考える・比較する / 手配=予約や調達 / 実施=アンケート回答・申請・提出など考えずにすぐ片付く軽い作業、のいずれか1つ）を付ける。
 {"kind":"email|teams|meeting|line|research|work|other","tags":["Teams","文章"],"questions":["…","…"]}`;
 
 const SYS_DRAFT = `あなたは日本語のビジネス文書アシスタントです。ユーザーの仕事環境は Outlook メール・Microsoft Teams・LINE です。
