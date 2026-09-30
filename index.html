@@ -989,7 +989,7 @@ function submitAdd() {
   const input = document.getElementById("add-input");
   const v = input.value.trim(); if (!v) return;
   const dueIn = document.getElementById("add-due-in"), remIn = document.getElementById("add-remind-in");
-  const t = addTask(v, null, { due: dueIn.value, remind: remIn.value }); if (addNoDue && !dueIn.value) t.noDue = true; if (addPrivate) t.tags = ["プライベート"]; input.value = "";
+  const t = addTask(v, null, { due: dueIn.value, remind: remIn.value }); if (addNoDue && !dueIn.value) t.noDue = true; if (addPrivate) t.tags = ["プライベート"]; if (addNoDue || addPrivate) save(db); input.value = "";
   dueIn.value = ""; remIn.value = ""; addNoDue = false; addPrivate = false; renderAddTools();
   // 追加時は詳細を開かず一覧に足すだけ（PC・スマホ共通）。AIの問い返しは裏で走り、行に「⚡ 回答待ち」が付く
   if (!isMobile()) selectedId = t.id; // PCのみ: 追加直後に詳細を開き、タグ・優先度・期限をその場で付ける。スマホは一覧のまま
