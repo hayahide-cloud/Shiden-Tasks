@@ -218,6 +218,9 @@
   .drow .ico { width: 18px; text-align: center; color: var(--ink-2); flex: none; }
   .drow .lbl { flex: 1; min-width: 0; }
   .drow.on .lbl, .drow.on .ico { color: var(--accent-hi); }
+  .quick { display: flex; gap: 6px; padding: 0 14px 10px 44px; flex-wrap: wrap; }
+  .quick .qb { font-size: 12px; color: var(--ink-2); background: var(--surface-3); border: 1px solid var(--grid); border-radius: 999px; padding: 5px 11px; cursor: pointer; }
+  .quick .qb.on { color: var(--accent-hi); border-color: var(--accent); }
   .drow .toggle { flex: none; font-size: 12px; color: var(--accent-hi); cursor: pointer; background: none; border: 1px solid var(--border); border-radius: 999px; padding: 4px 10px; margin-left: auto; }
   .drow .toggle.on { background: rgba(124,58,237,0.18); }
   .drow .clear { background: none; border: none; color: var(--muted); font-size: 16px; cursor: pointer; padding: 4px; }
@@ -428,6 +431,7 @@ const KEY = "shiden_tasks_v1", DEL_KEY = "shiden_tasks_deleted_v1", CFG_KEY = "s
 
 /* ---- バージョンと更新履歴（公開版が反映されているかの確認用。変更のたびに先頭へ追記する） ---- */
 const CHANGELOG = [
+  ["2026-09-30.56", "期限のクイック設定ボタン（今日／明日／週明け月曜）を詳細に追加"],
   ["2026-09-30.55", "PC: タスク追加後に詳細を開く（タグ・優先度・期限をすぐ付けられる）。スマホは開かない"],
   ["2026-09-30.54", "期限に「期限なし」を選べるように（選ぶと不完全扱いにならない）"],
   ["2026-09-30.53", "期限未設定も「不完全」に含める"],
@@ -526,6 +530,8 @@ function newId() { return (self.crypto && crypto.randomUUID) ? crypto.randomUUID
 function now() { return Date.now(); }
 function todayStr() { const d = new Date(); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
 function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
+function addDays(n) { const d = new Date(); d.setDate(d.getDate() + n); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
+function nextMonday() { const dow = new Date().getDay(); return addDays(dow === 0 ? 1 : 8 - dow); } // 週明けの月曜（今日が月曜なら来週）
 function fmtDue(d) {
   // 期限の表示: 今日／明日／M月D日(曜)。MS To Do と同じ感覚で相対表記にする
   const td = todayStr(); if (d === td) return "今日";
@@ -679,6 +685,7 @@ function renderDetail() {
       </div>
       <div class="dcard">
         <div class="drow ${t.due || t.noDue ? "on" : ""}"><span class="ico">📅</span>${t.noDue ? `<span class="lbl">期限なし</span>` : `<input type="date" id="d-due" value="${esc(t.due)}" title="期限日">`}<button class="toggle ${t.noDue ? "on" : ""}" id="d-nodue" title="期限を設けないタスク">${t.noDue ? "期限を設定する" : "期限なし"}</button>${t.due ? `<button class="clear" data-clear="due" title="期限を削除">×</button>` : ""}</div>
+        <div class="quick">${[["今日", todayStr()], ["明日", addDays(1)], ["週明け月曜", nextMonday()]].map(([l, v]) => `<button class="qb ${t.due === v ? "on" : ""}" data-quick="${v}">${l}</button>`).join("")}</div>
         <div class="drow ${t.remind ? "on" : ""}"><span class="ico">⏰</span><input type="datetime-local" id="d-remind" value="${esc(t.remind)}" title="通知（アプリを開いているときに知らせます）">${t.remind ? `<button class="clear" data-clear="remind" title="通知を削除">×</button>` : ""}</div>
         <div class="drow"><span class="ico">☰</span><select id="d-list" title="リスト"><option value="">タスク</option>${db.lists.map(l => `<option value="${l.id}" ${t.listId === l.id ? "selected" : ""}>${esc(l.name)}</option>`).join("")}</select></div>
       </div>
@@ -1014,6 +1021,7 @@ function bindDetail(t) {
   el.querySelector(".dhead [data-act=toggle]").addEventListener("click", () => { t.done = !t.done; touch(t); render(); });
   el.querySelector(".dhead .prio").addEventListener("click", e => { const p = e.target.closest("[data-p]"); if (!p) return; const v = Number(p.dataset.p); t.priority = t.priority === v ? 0 : v; touch(t); render(); });
   const dd = el.querySelector("#d-due"); if (dd) dd.addEventListener("change", e => { t.due = e.target.value; if (t.due) t.noDue = false; touch(t); render(); });
+  el.querySelector(".quick").addEventListener("click", e => { const b = e.target.closest("[data-quick]"); if (!b) return; t.due = b.dataset.quick; t.noDue = false; touch(t); render(); });
   el.querySelector("#d-nodue").addEventListener("click", () => { t.noDue = !t.noDue; if (t.noDue) t.due = ""; touch(t); render(); });
   const dc = el.querySelector("[data-clear=due]"); if (dc) dc.addEventListener("click", () => { t.due = ""; touch(t); render(); });
   el.querySelector("#d-remind").addEventListener("change", e => { t.remind = e.target.value; t.remindFired = false; if (t.remind) askNotifyPermission(); touch(t); render(); });
