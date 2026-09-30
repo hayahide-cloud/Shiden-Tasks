@@ -386,6 +386,7 @@ const KEY = "shiden_tasks_v1", DEL_KEY = "shiden_tasks_deleted_v1", CFG_KEY = "s
 
 /* ---- バージョンと更新履歴（公開版が反映されているかの確認用。変更のたびに先頭へ追記する） ---- */
 const CHANGELOG = [
+  ["2026-09-30.35", "種別タグに「返信」を追加。順を 対応→返信→文章作成→成果物作成→手配→検討 に"],
   ["2026-09-30.34", "種別タグの順を 対応→手配→文章作成→成果物作成→検討 に変更"],
   ["2026-09-30.33", "タグの表示順を常に ツール→種別→自由 に固定"],
   ["2026-09-30.32", "フィルタバーに定型タグを常時表示（0件は薄く）"],
@@ -427,7 +428,7 @@ document.getElementById("changelog").innerHTML = CHANGELOG.map(([v, m], i) => `<
 const SMART = { myday: "今日の予定", important: "重要", planned: "今後の予定", all: "タスク" };
 const SMART_ICO = { myday: "☀️", important: "⭐", planned: "📅", all: "🏠" };
 const TAG_CH = ["Teams", "Outlook", "LINE", "Excel", "Word", "PP"];  // どこの案件か／何で作るか（PP＝PowerPoint）
-const TAG_TY = ["対応", "手配", "文章作成", "成果物作成", "検討"];  // 軽い順（対応→手配→文章作成→成果物作成→検討）  // どんな仕事か（対応＝アンケート回答・申請など、考えずにサッと片付ける軽い作業）
+const TAG_TY = ["対応", "返信", "文章作成", "成果物作成", "手配", "検討"];  // 表示順（対応→返信→文章作成→成果物作成→手配→検討）  // どんな仕事か（対応＝アンケート回答・申請など、考えずにサッと片付ける軽い作業）
 const TAG_RENAME = { "実施": "対応", "文章": "文章作成", "作成": "成果物作成" }; // 旧名称の移行（読み込み時に置換）
 function tagClass(tag) { return TAG_CH.includes(tag) ? "ch" : TAG_TY.includes(tag) ? "ty" : "fr"; }
 function tagChip(tag, on) { return `<span class="tag ${tagClass(tag)} ${on ? "on" : ""}" data-tag="${esc(tag)}">${esc(tag)}</span>`; }
@@ -708,7 +709,7 @@ const SYS_ASK = `あなたは日本語のタスク管理アシスタントです
 - meeting: 会議や打ち合わせの日程調整
 - research: 予約・手配・購入・調べもの（例: ゴルフのセッティング、店の予約、旅行、備品の購入、比較検討）。この場合は同行者・希望日時・場所や地域・予算・条件を聞く
 - work: 自分で行う作業（資料作成、週報、確認作業など）。この場合は成果物・期限・材料を聞く
-さらに tags として、案件のツール（Teams / Outlook / LINE / Excel / Word / PP のいずれか。PP は PowerPoint。分からなければ入れない）と仕事の種別（文章作成=メールやメッセージなど文を書く / 成果物作成=資料・図・データなど物を作る / 検討=考える・比較する / 手配=予約や調達 / 対応=アンケート回答・申請・提出など考えずにすぐ片付く軽い作業、のいずれか1つ）を付ける。
+さらに tags として、案件のツール（Teams / Outlook / LINE / Excel / Word / PP のいずれか。PP は PowerPoint。分からなければ入れない）と仕事の種別（対応=アンケート回答・申請・提出など考えずにすぐ片付く軽い作業 / 返信=届いたメールやメッセージへの返事 / 文章作成=新規にメールやメッセージなど文を書く / 成果物作成=資料・図・データなど物を作る / 手配=予約や調達 / 検討=考える・比較する、のいずれか1つ）を付ける。
 {"kind":"email|teams|meeting|line|research|work|other","tags":["Teams","文章作成"],"questions":["…","…"]}`;
 
 const SYS_DRAFT = `あなたは日本語のビジネス文書アシスタントです。ユーザーの仕事環境は Outlook メール・Microsoft Teams・LINE です。
