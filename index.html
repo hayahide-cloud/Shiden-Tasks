@@ -413,6 +413,7 @@ const KEY = "shiden_tasks_v1", DEL_KEY = "shiden_tasks_deleted_v1", CFG_KEY = "s
 
 /* ---- バージョンと更新履歴（公開版が反映されているかの確認用。変更のたびに先頭へ追記する） ---- */
 const CHANGELOG = [
+  ["2026-09-30.47", "「タグ不完全」を「不完全」に改名し、優先度未設定も対象に"],
   ["2026-09-30.46", "詳細のタイトルを折り返し表示（長いタスク名も全文見える）"],
   ["2026-09-30.45", "優先度バーを大きく表示"],
   ["2026-09-30.44", "AIで分解の粒度を「意味のあるまとまり」単位（3〜6ステップ）に変更し、タグを段取りの骨組みに使う。細分化は各ステップの 🧩 で"],
@@ -473,8 +474,8 @@ function tagClass(tag) { return TAG_CH.includes(tag) ? "ch" : TAG_TY.includes(ta
 function tagChip(tag, on) { return `<span class="tag ${tagClass(tag)} ${on ? "on" : ""}" data-tag="${esc(tag)}">${esc(tag)}</span>`; }
 let tagFilter = null; // 一覧のタグ絞り込み（null=すべて）
 // 表示順は常に ツール（青）→ 種別（緑）→ 自由タグ。付けた順序に依存させない
-// 青（ツール）と緑（種別）が揃っていないタスクは「タグ不完全」
-function tagIncomplete(t) { const g = t.tags || []; return !g.some(x => TAG_CH.includes(x)) || !g.some(x => TAG_TY.includes(x)); }
+// ツール（青）・種別（緑）・優先度のどれかが未設定なら「不完全」
+function tagIncomplete(t) { const g = t.tags || []; return !g.some(x => TAG_CH.includes(x)) || !g.some(x => TAG_TY.includes(x)) || !(t.priority > 0); }
 const INCOMPLETE = "__incomplete"; // フィルタの特別値
 function sortTags(tags) {
   const rank = g => TAG_CH.includes(g) ? TAG_CH.indexOf(g) : TAG_TY.includes(g) ? 100 + TAG_TY.indexOf(g) : 200;
@@ -582,7 +583,7 @@ function renderList() {
   const chipOf = g => tagChip(g, tagFilter === g).replace('class="tag', `class="tag ${counts[g] ? "" : "zero"}`);
   const free = tagsHere.filter(g => !TAG_CH.includes(g) && !TAG_TY.includes(g));
   const nInc = all.filter(t => !t.done && tagIncomplete(t)).length;
-  const incChip = `<span class="tag warn ${tagFilter === INCOMPLETE ? "on" : ""} ${nInc ? "" : "zero"}" data-tag="${INCOMPLETE}" title="ツール（青）と種別（緑）が揃っていないタスク">⚠ タグ不完全${nInc ? " " + nInc : ""}</span><span class="sep"></span>`;
+  const incChip = `<span class="tag warn ${tagFilter === INCOMPLETE ? "on" : ""} ${nInc ? "" : "zero"}" data-tag="${INCOMPLETE}" title="ツール・種別・優先度のどれかが未設定のタスク">⚠ 不完全${nInc ? " " + nInc : ""}</span><span class="sep"></span>`;
   document.getElementById("tagbar").innerHTML = incChip + TAG_CH.map(chipOf).join("") + `<span class="sep"></span>` + TAG_TY.map(chipOf).join("") + (free.length ? `<span class="sep"></span>` + free.map(chipOf).join("") : "") + (tagFilter ? `<button class="clear" data-tag="">× 絞り込み解除</button>` : "");
   const ts = tagFilter === INCOMPLETE ? all.filter(tagIncomplete) : tagFilter ? all.filter(t => (t.tags || []).includes(tagFilter)) : all;
   const open = ts.filter(t => !t.done).sort((a, b) => ((b.priority || 0) - (a.priority || 0)) || (a.due || "9").localeCompare(b.due || "9") || b.ct - a.ct);
@@ -598,7 +599,7 @@ function renderList() {
     if (t.steps.length) { const nx = t.steps.find(x => !x.done); meta.push(`<span>${t.steps.filter(s => s.done).length}/${t.steps.length}${nx && !t.done ? " → " + esc(nx.title) : ""}</span>`); }
     if (t.note) meta.push(`<span>📝</span>`);
     sortTags(t.tags).forEach(g => meta.push(tagChip(g)));
-    if (!t.done && tagIncomplete(t)) meta.push(`<span class="tag warn" title="ツールと種別の両方を付けてください">⚠</span>`);
+    if (!t.done && tagIncomplete(t)) meta.push(`<span class="tag warn" title="ツール・種別・優先度を設定してください">⚠</span>`);
     if (t.ai && t.ai.draft) meta.push(`<span class="aim">⚡ 下書きあり</span>`);
     else if (t.ai && t.ai.questions && !t.ai.draft) meta.push(`<span class="aim">⚡ 回答待ち</span>`);
     return `<li class="task ${t.done ? "done" : ""} ${selectedId === t.id ? "sel" : ""}" data-id="${t.id}">
