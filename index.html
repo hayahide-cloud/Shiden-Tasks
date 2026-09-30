@@ -47,8 +47,15 @@
   .ibtn:hover { background: var(--surface-3); color: #fff; }
 
   /* ---- 設定パネル（アプリバー直下に展開） ---- */
-  .cfg { display: none; flex: none; background: var(--surface); border-bottom: 1px solid var(--grid); padding: 14px 16px; max-height: 60vh; overflow: auto; }
-  .cfg.open { display: block; }
+  /* 設定ページ（全画面。アプリの上に重ねる。スマホは右からスライド） */
+  .cfg { position: fixed; inset: 0; z-index: 90; background: var(--page); display: flex; flex-direction: column; transform: translateX(100%); visibility: hidden; transition: transform .28s cubic-bezier(.2,.8,.2,1), visibility 0s linear .28s; }
+  .cfg.open { transform: none; visibility: visible; transition: transform .28s cubic-bezier(.2,.8,.2,1); }
+  .cfg-head { flex: none; height: calc(var(--appbar-h) + env(safe-area-inset-top, 0px)); padding-top: env(safe-area-inset-top, 0px); display: flex; align-items: center; gap: 6px; padding-left: 8px; padding-right: 12px; background: var(--surface); border-bottom: 1px solid var(--grid); font-weight: 600; font-size: 16px; color: #fff; }
+  .cfg-head .back { font-size: 22px; }
+  .cfg-body { flex: 1; min-height: 0; overflow: auto; padding: 16px; padding-bottom: max(24px, env(safe-area-inset-bottom)); }
+  .cfg-inner { max-width: 720px; margin: 0 auto; }
+  .cfg h3 { font-size: 14px; color: var(--accent-hi); margin: 18px 0 8px; }
+  .cfg h3:first-child { margin-top: 0; }
   .cfg label { font-size: 12px; color: var(--ink-2); display: block; margin: 8px 0; }
   .cfg-grid { display: grid; gap: 8px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
   .cfg input, .cfg select { width: 100%; font-size: 14px; background: var(--surface-2); color: var(--ink); border: 1px solid var(--border); border-radius: 6px; padding: 9px 11px; }
@@ -239,7 +246,10 @@
 
   <!-- 設定（GitHub同期・OpenAI API） -->
   <div class="cfg" id="cfg-panel">
-    <label>■ GitHub 同期 — Private リポジトリにタスクを保存します（各端末で1回設定）。Fine-grained トークンは対象リポジトリのみ・Contents読み書きで発行してください。</label>
+    <div class="cfg-head"><button class="ibtn back" id="cfg-close" type="button" title="戻る">‹</button>設定</div>
+    <div class="cfg-body"><div class="cfg-inner">
+    <h3>GitHub 同期</h3>
+    <label>Private リポジトリにタスクを保存します（各端末で1回設定）。Fine-grained トークンは対象リポジトリのみ・Contents読み書きで発行してください。</label>
     <div class="cfg-grid">
       <input id="cfg-owner" placeholder="owner（例: hayahide-cloud）" autocapitalize="off" autocorrect="off">
       <input id="cfg-repo" placeholder="repo（例: Hayahide-Log）" autocapitalize="off" autocorrect="off">
@@ -247,7 +257,8 @@
       <input id="cfg-branch" placeholder="branch（例: main）" value="main" autocapitalize="off" autocorrect="off">
       <input id="cfg-token" type="password" placeholder="Fine-grained token（github_pat_...）" autocapitalize="off" autocorrect="off">
     </div>
-    <label>■ OpenAI API — AI補助（問い返し・下書き）に使います。キーはこの端末のブラウザ内にのみ保存されます。</label>
+    <h3>OpenAI API</h3>
+    <label>AI補助（問い返し・下書き）に使います。キーはこの端末のブラウザ内にのみ保存されます。</label>
     <div class="cfg-grid">
       <input id="cfg-openai" type="password" placeholder="OpenAI API key（sk-...）" autocapitalize="off" autocorrect="off">
       <select id="cfg-model">
@@ -262,8 +273,10 @@
       <button class="btn" id="cfg-save" type="button">保存して同期</button>
       <button class="linkbtn danger" id="cfg-clear" type="button">この端末の設定を削除</button>
     </div>
-    <label>■ 更新履歴 — 表示中のページのバージョン（●）。公開後に古い画面が出る場合はブラウザのキャッシュなので再読み込みしてください。</label>
+    <h3>更新履歴</h3>
+    <label>表示中のページのバージョンに ● が付きます。公開後に古い画面が出る場合はブラウザのキャッシュなので再読み込みしてください。</label>
     <ul class="changelog" id="changelog"></ul>
+    </div></div>
   </div>
 
   <div class="app" id="app">
@@ -306,6 +319,7 @@ const KEY = "shiden_tasks_v1", DEL_KEY = "shiden_tasks_deleted_v1", CFG_KEY = "s
 
 /* ---- バージョンと更新履歴（公開版が反映されているかの確認用。変更のたびに先頭へ追記する） ---- */
 const CHANGELOG = [
+  ["2026-09-30.9", "設定を独立した全画面ページに変更"],
   ["2026-09-30.8", "iPhone でアプリバーがステータスバーに重なる不具合を修正"],
   ["2026-09-30.7", "設定に更新履歴とバージョン表示を追加"],
   ["2026-09-30.6", "スマホの画面遷移をスライドアニメーションに"],
@@ -703,7 +717,8 @@ function fillCfg() {
   document.getElementById("cfg-openai").value = c.openai || "";
   document.getElementById("cfg-model").value = c.model || "gpt-5-mini";
 }
-document.getElementById("gh-config").addEventListener("click", () => { fillCfg(); panel.classList.toggle("open"); });
+document.getElementById("gh-config").addEventListener("click", () => { fillCfg(); panel.classList.add("open"); });
+document.getElementById("cfg-close").addEventListener("click", () => panel.classList.remove("open"));
 document.getElementById("cfg-save").addEventListener("click", () => {
   setCfg({
     owner: document.getElementById("cfg-owner").value.trim(), repo: document.getElementById("cfg-repo").value.trim(),
