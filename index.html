@@ -361,7 +361,7 @@
       </div>
       <div class="tagbar" id="tagbar"></div>
       <div class="tasks-scroll" id="tasks-scroll"><div class="ptr" id="ptr-main"></div><ul class="tasks" id="tasks"></ul></div>
-      <div class="add"><span class="plus">＋</span><input id="add-input" placeholder="タスクの追加（AIが内容を確認します）" enterkeyhint="done">
+      <div class="add"><span class="plus">＋</span><input id="add-input" placeholder="タスクの追加" enterkeyhint="done">
         <span class="tools">
           <button class="tool" id="add-due" type="button" title="期限日を追加"><span id="add-due-lbl">📅</span><input type="date" id="add-due-in" tabindex="-1"></button>
           <button class="tool" id="add-remind" type="button" title="通知（アプリを開いているときに知らせます）"><span id="add-remind-lbl">⏰</span><input type="datetime-local" id="add-remind-in" tabindex="-1"></button>
@@ -386,6 +386,7 @@ const KEY = "shiden_tasks_v1", DEL_KEY = "shiden_tasks_deleted_v1", CFG_KEY = "s
 
 /* ---- バージョンと更新履歴（公開版が反映されているかの確認用。変更のたびに先頭へ追記する） ---- */
 const CHANGELOG = [
+  ["2026-09-30.37", "タスク追加時にAIを自動起動しない（詳細の「AIに相談する」で発動）。タグ・メモをAIに渡す"],
   ["2026-09-30.36", "「文章作成」を「新規文章作成」に改名（自動移行）。ツール・種別に「その他ツール」「その他種別」を追加"],
   ["2026-09-30.35", "種別タグに「返信」を追加。順を 対応→返信→文章作成→成果物作成→手配→検討 に"],
   ["2026-09-30.34", "種別タグの順を 対応→手配→文章作成→成果物作成→検討 に変更"],
@@ -626,7 +627,7 @@ function renderAi(t) {
   if (!cfg.openai) {
     body = `<div class="status">「⚙️ 設定」で OpenAI API キーを入れると、AIがこのタスクの内容を確認して下書きを作ります。</div>`;
   } else if (!a.questions) {
-    body = `<div class="actions"><button class="btn" data-ai="ask">⚡ AIに相談する</button></div><div class="status" id="ai-status"></div>`;
+    body = `<div class="status">タグ・期限・メモを付けてから押すと、AIが種類を判定して不足情報を質問します。</div><div class="actions"><button class="btn" data-ai="ask">⚡ AIに相談する</button></div><div class="status" id="ai-status"></div>`;
   } else {
     body = a.questions.map((q, i) => `<div class="q"><label>${i + 1}. ${esc(q)}</label><input data-ans="${i}" value="${esc((a.answers || [])[i] || "")}" placeholder="回答（空欄でも可）"></div>`).join("");
     body += `<div class="actions"><button class="btn" data-ai="draft">${a.draft ? "↻ 下書きを作り直す" : "✍️ 下書きを作る"}</button><button class="linkbtn" data-ai="reask">質問をやり直す</button></div>`;
@@ -732,7 +733,7 @@ const SYS_RESEARCH = `あなたは日本語の手配・調査アシスタント�
 async function aiAsk(t) {
   aiBusy = t.id; renderDetail(); setAiStatus("<span class='spin'></span>AIがタスクを確認しています…");
   try {
-    const out = await callAI(SYS_ASK, `タスク: ${t.title}${t.note ? "\nメモ: " + t.note : ""}${t.due ? "\n期限: " + t.due : ""}`, 1024);
+    const out = await callAI(SYS_ASK, `タスク: ${t.title}${(t.tags || []).length ? "\nタグ: " + t.tags.join(", ") : ""}${t.note ? "\nメモ: " + t.note : ""}${t.due ? "\n期限: " + t.due : ""}`, 1024);
     const j = extractJson(out);
     t.ai = { kind: j.kind || "other", questions: Array.isArray(j.questions) ? j.questions.slice(0, 5) : [], answers: [], draft: null };
     // タグが未設定なら AI の提案を採用（定型タグのみ。ユーザーが付けたものは上書きしない）
@@ -747,7 +748,7 @@ async function aiDraft(t) {
   setAiStatus("<span class='spin'></span>下書きを作成中…");
   try {
     const qa = a.questions.map((q, i) => `Q${i + 1}: ${q}\nA${i + 1}: ${a.answers[i] || "（未回答）"}`).join("\n");
-    const user = `タスク: ${t.title}\n種類: ${AI_KINDS[a.kind] || a.kind}${t.note ? "\nメモ: " + t.note : ""}${t.due ? "\n期限: " + t.due : ""}\n\n${qa}`;
+    const user = `タスク: ${t.title}\n種類: ${AI_KINDS[a.kind] || a.kind}${(t.tags || []).length ? "\nタグ: " + t.tags.join(", ") : ""}${t.note ? "\nメモ: " + t.note : ""}${t.due ? "\n期限: " + t.due : ""}\n\n${qa}`;
     let out, searched = false;
     if (SEARCH_KINDS.has(a.kind)) {
       setAiStatus("<span class='spin'></span>Webで候補を検索しています…");
@@ -813,7 +814,7 @@ function submitAdd() {
   // 追加時は詳細を開かず一覧に足すだけ（PC・スマホ共通）。AIの問い返しは裏で走り、行に「⚡ 回答待ち」が付く
   if (!isMobile()) input.focus(); // PCは続けて入力できるようフォーカスを戻す
   render();
-  if (getCfg().openai) aiAsk(t); // APIキーがあれば登録直後にAIが内容を確認しに来る
+  // AI補助は自動では起動しない。タグ付け等を済ませてから詳細の「AIに相談する」で発動する
 }
 document.getElementById("add-input").addEventListener("keydown", e => { if (e.key === "Enter") submitAdd(); });
 document.getElementById("add-go").addEventListener("click", submitAdd);
