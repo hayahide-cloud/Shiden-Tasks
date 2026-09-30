@@ -139,6 +139,7 @@
   .tagbar .tag.zero { opacity: .25; }
   .tagbar .sep { width: 1px; background: var(--grid); margin: 2px 2px; }
   .tag.warn { background: rgba(251,191,36,0.14); color: var(--warn); border-color: rgba(251,191,36,0.35); }
+  .tag.today { background: rgba(248,113,113,0.14); color: #fca5a5; border-color: rgba(248,113,113,0.35); }
   .tagbar .tag.on, .tagbar .tag:not(.on):active { opacity: 1; box-shadow: 0 0 0 1px currentColor inset; }
   .tagbar .clear { font-size: 12px; color: var(--muted); background: none; border: none; cursor: pointer; }
   .dtags { padding: 10px 14px; display: flex; flex-direction: column; gap: 8px; }
@@ -439,6 +440,7 @@ const KEY = "shiden_tasks_v1", DEL_KEY = "shiden_tasks_deleted_v1", CFG_KEY = "s
 
 /* ---- バージョンと更新履歴（公開版が反映されているかの確認用。変更のたびに先頭へ追記する） ---- */
 const CHANGELOG = [
+  ["2026-09-30.60", "フィルタに「📅 今日締切」を追加（期限が今日以前の未完了）"],
   ["2026-09-30.59", "期限超過のタスクを赤字で表示し「不完全」に含める（期限を再設定するまで）"],
   ["2026-09-30.58", "「期限なし」をクイックボタンの並びに移動"],
   ["2026-09-30.57", "削除の確認を画面中央のアプリ内ダイアログに変更"],
@@ -528,7 +530,7 @@ function sortOpen(list) {
 // ツール（青）・種別（緑）・優先度・期限のどれかが未設定なら「不完全」
 function isOverdue(t) { return !!t.due && !t.done && t.due < todayStr(); } // 期限超過（再設定するまで赤字・不完全）
 function tagIncomplete(t) { const g = t.tags || []; return !g.some(x => TAG_CH.includes(x)) || !g.some(x => TAG_TY.includes(x)) || !(t.priority > 0) || !(t.due || t.noDue) || isOverdue(t); }
-const INCOMPLETE = "__incomplete"; // フィルタの特別値
+const INCOMPLETE = "__incomplete", TODAY = "__today"; // フィルタの特別値（不完全／今日締め切り＝期限が今日以前の未完了）
 function sortTags(tags) {
   const rank = g => TAG_CH.includes(g) ? TAG_CH.indexOf(g) : TAG_TY.includes(g) ? 100 + TAG_TY.indexOf(g) : 200;
   return [...(tags || [])].sort((a, b) => rank(a) - rank(b) || a.localeCompare(b, "ja"));
@@ -634,9 +636,10 @@ function renderList() {
   const chipOf = g => tagChip(g, tagFilter === g).replace('class="tag', `class="tag ${counts[g] ? "" : "zero"}`);
   const free = tagsHere.filter(g => !TAG_CH.includes(g) && !TAG_TY.includes(g));
   const nInc = all.filter(t => !t.done && tagIncomplete(t)).length;
-  const incChip = `<span class="tag warn ${tagFilter === INCOMPLETE ? "on" : ""} ${nInc ? "" : "zero"}" data-tag="${INCOMPLETE}" title="ツール・種別・優先度・期限のどれかが未設定、または期限超過のタスク">⚠ 不完全${nInc ? " " + nInc : ""}</span><span class="sep"></span>`;
+  const nToday = all.filter(t => !t.done && t.due && t.due <= todayStr()).length;
+  const incChip = `<span class="tag warn ${tagFilter === INCOMPLETE ? "on" : ""} ${nInc ? "" : "zero"}" data-tag="${INCOMPLETE}" title="ツール・種別・優先度・期限のどれかが未設定、または期限超過のタスク">⚠ 不完全${nInc ? " " + nInc : ""}</span><span class="tag today ${tagFilter === TODAY ? "on" : ""} ${nToday ? "" : "zero"}" data-tag="${TODAY}" title="期限が今日のタスク（超過分も含む）">📅 今日締切${nToday ? " " + nToday : ""}</span><span class="sep"></span>`;
   document.getElementById("tagbar").innerHTML = incChip + TAG_CH.map(chipOf).join("") + `<span class="sep"></span>` + TAG_TY.map(chipOf).join("") + (free.length ? `<span class="sep"></span>` + free.map(chipOf).join("") : "") + (tagFilter ? `<button class="clear" data-tag="">× 絞り込み解除</button>` : "");
-  const ts = tagFilter === INCOMPLETE ? all.filter(tagIncomplete) : tagFilter ? all.filter(t => (t.tags || []).includes(tagFilter)) : all;
+  const ts = tagFilter === INCOMPLETE ? all.filter(tagIncomplete) : tagFilter === TODAY ? all.filter(t => t.due && t.due <= todayStr()) : tagFilter ? all.filter(t => (t.tags || []).includes(tagFilter)) : all;
   const open = sortOpen(ts.filter(t => !t.done));
   document.getElementById("sort-lbl").textContent = SORT_LBL[sortCfg.key] + (sortCfg.dir === "asc" ? " ↑" : " ↓");
   document.querySelectorAll("#sort-pop [data-sort]").forEach(b => b.classList.toggle("on", b.dataset.sort === sortCfg.key));
