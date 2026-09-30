@@ -37,7 +37,8 @@
 
   /* ---- アプリバー（MS To Do の最上部バー相当） ---- */
   .shell { height: 100%; display: flex; flex-direction: column; }
-  .appbar { height: var(--appbar-h); flex: none; display: flex; align-items: center; gap: 10px; padding: 0 12px 0 14px; padding-top: env(safe-area-inset-top); background: var(--surface); border-bottom: 1px solid var(--grid); }
+  /* iPhone のステータスバー下に潜り込まないよう、高さを安全領域ぶん伸ばす（固定48pxだと中身が潰れて重なる） */
+  .appbar { height: calc(var(--appbar-h) + env(safe-area-inset-top, 0px)); flex: none; display: flex; align-items: center; gap: 10px; padding: 0 12px 0 14px; padding-top: env(safe-area-inset-top, 0px); background: var(--surface); border-bottom: 1px solid var(--grid); }
   .brand { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 16px; color: #fff; white-space: nowrap; }
   .brand svg { width: 24px; height: 24px; }
   .brand .g { background: linear-gradient(90deg, #a78bfa, #7c3aed); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
@@ -201,7 +202,7 @@
     .side { border-right: none; }
     .main { position: absolute; inset: 0; background: var(--page); transform: translateX(100%); transition: transform .28s cubic-bezier(.2,.8,.2,1); will-change: transform; }
     body.m-list .main { transform: none; }
-    .detail { position: absolute; inset: 0; z-index: 50; border-left: none; padding-top: env(safe-area-inset-top); transform: translateX(100%); visibility: hidden; transition: transform .28s cubic-bezier(.2,.8,.2,1), visibility 0s linear .28s; will-change: transform; }
+    .detail { position: absolute; inset: 0; z-index: 50; border-left: none; transform: translateX(100%); visibility: hidden; transition: transform .28s cubic-bezier(.2,.8,.2,1), visibility 0s linear .28s; will-change: transform; }
     .detail.show { transform: none; visibility: visible; transition: transform .28s cubic-bezier(.2,.8,.2,1); }
     .nav li { padding: 12px 12px; font-size: 15px; }
     .newlist input { font-size: 16px; }
@@ -305,6 +306,7 @@ const KEY = "shiden_tasks_v1", DEL_KEY = "shiden_tasks_deleted_v1", CFG_KEY = "s
 
 /* ---- バージョンと更新履歴（公開版が反映されているかの確認用。変更のたびに先頭へ追記する） ---- */
 const CHANGELOG = [
+  ["2026-09-30.8", "iPhone でアプリバーがステータスバーに重なる不具合を修正"],
   ["2026-09-30.7", "設定に更新履歴とバージョン表示を追加"],
   ["2026-09-30.6", "スマホの画面遷移をスライドアニメーションに"],
   ["2026-09-30.5", "UIを Microsoft To Do 準拠に再構成（3ペイン・完了折りたたみ・詳細ペイン下部バー）"],
