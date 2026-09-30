@@ -384,6 +384,7 @@ const KEY = "shiden_tasks_v1", DEL_KEY = "shiden_tasks_deleted_v1", CFG_KEY = "s
 
 /* ---- バージョンと更新履歴（公開版が反映されているかの確認用。変更のたびに先頭へ追記する） ---- */
 const CHANGELOG = [
+  ["2026-09-30.31", "ツールタグに Excel / Word / PP を追加"],
   ["2026-09-30.30", "種別タグを「文章作成」「成果物作成」に改名（既存データは自動移行）"],
   ["2026-09-30.29", "PC: 詳細ペインを常に表示（× で閉じても領域は残る）"],
   ["2026-09-30.28", "種別タグ「実施」を「対応」に改名（既存データは自動移行）"],
@@ -420,7 +421,7 @@ document.getElementById("ver").textContent = "v" + VERSION;
 document.getElementById("changelog").innerHTML = CHANGELOG.map(([v, m], i) => `<li class="${i === 0 ? "cur" : ""}"><span class="v">${v}</span><span>${m}</span></li>`).join("");
 const SMART = { myday: "今日の予定", important: "重要", planned: "今後の予定", all: "タスク" };
 const SMART_ICO = { myday: "☀️", important: "⭐", planned: "📅", all: "🏠" };
-const TAG_CH = ["Teams", "Outlook", "LINE"];            // どこの案件か
+const TAG_CH = ["Teams", "Outlook", "LINE", "Excel", "Word", "PP"];  // どこの案件か／何で作るか（PP＝PowerPoint）
 const TAG_TY = ["文章作成", "成果物作成", "検討", "手配", "対応"];  // どんな仕事か（対応＝アンケート回答・申請など、考えずにサッと片付ける軽い作業）
 const TAG_RENAME = { "実施": "対応", "文章": "文章作成", "作成": "成果物作成" }; // 旧名称の移行（読み込み時に置換）
 function tagClass(tag) { return TAG_CH.includes(tag) ? "ch" : TAG_TY.includes(tag) ? "ty" : "fr"; }
@@ -576,7 +577,7 @@ function renderDetail() {
         <div class="drow ${t.myDay ? "on" : ""}" id="d-myday"><span class="ico">☀️</span><span class="lbl">${t.myDay ? "今日の予定に追加済み" : "今日の予定に追加"}</span>${t.myDay ? `<button class="clear" data-clear="myday" title="今日の予定から削除">×</button>` : ""}</div>
       </div>
       <div class="dcard dtags">
-        <div class="grp"><span class="lbl">🏷 案件</span>${TAG_CH.map(g => tagChip(g, (t.tags || []).includes(g))).join("")}</div>
+        <div class="grp"><span class="lbl">🏷 ツール</span>${TAG_CH.map(g => tagChip(g, (t.tags || []).includes(g))).join("")}</div>
         <div class="grp"><span class="lbl">種別</span>${TAG_TY.map(g => tagChip(g, (t.tags || []).includes(g))).join("")}</div>
         <div class="grp"><span class="lbl">その他</span>${(t.tags || []).filter(g => !TAG_CH.includes(g) && !TAG_TY.includes(g)).map(g => tagChip(g, true)).join("")}<input id="d-tag" placeholder="＋ タグ（Enter）" enterkeyhint="done"></div>
       </div>
@@ -695,7 +696,7 @@ const SYS_ASK = `あなたは日本語のタスク管理アシスタントです
 - meeting: 会議や打ち合わせの日程調整
 - research: 予約・手配・購入・調べもの（例: ゴルフのセッティング、店の予約、旅行、備品の購入、比較検討）。この場合は同行者・希望日時・場所や地域・予算・条件を聞く
 - work: 自分で行う作業（資料作成、週報、確認作業など）。この場合は成果物・期限・材料を聞く
-さらに tags として、案件のチャネル（Teams / Outlook / LINE のいずれか。分からなければ入れない）と仕事の種別（文章作成=メールやメッセージなど文を書く / 成果物作成=資料・図・データなど物を作る / 検討=考える・比較する / 手配=予約や調達 / 対応=アンケート回答・申請・提出など考えずにすぐ片付く軽い作業、のいずれか1つ）を付ける。
+さらに tags として、案件のツール（Teams / Outlook / LINE / Excel / Word / PP のいずれか。PP は PowerPoint。分からなければ入れない）と仕事の種別（文章作成=メールやメッセージなど文を書く / 成果物作成=資料・図・データなど物を作る / 検討=考える・比較する / 手配=予約や調達 / 対応=アンケート回答・申請・提出など考えずにすぐ片付く軽い作業、のいずれか1つ）を付ける。
 {"kind":"email|teams|meeting|line|research|work|other","tags":["Teams","文章作成"],"questions":["…","…"]}`;
 
 const SYS_DRAFT = `あなたは日本語のビジネス文書アシスタントです。ユーザーの仕事環境は Outlook メール・Microsoft Teams・LINE です。
