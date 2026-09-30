@@ -426,6 +426,7 @@ const KEY = "shiden_tasks_v1", DEL_KEY = "shiden_tasks_deleted_v1", CFG_KEY = "s
 
 /* ---- バージョンと更新履歴（公開版が反映されているかの確認用。変更のたびに先頭へ追記する） ---- */
 const CHANGELOG = [
+  ["2026-09-30.52", "「優先」「今後の予定」のスマートリストを廃止（並べ替えで代替）"],
   ["2026-09-30.51", "並べ替え: 優先度／期限／追加日 × 降順／昇順（端末ごとに記憶）"],
   ["2026-09-30.50", "「今日の予定」を廃止。起動時は「タスク」一覧"],
   ["2026-09-30.49", "自由タグの追加を廃止（定型のツール・種別のみ）。既存の自由タグは削除のみ可"],
@@ -481,8 +482,8 @@ const CHANGELOG = [
 const VERSION = CHANGELOG[0][0];
 document.getElementById("ver").textContent = "v" + VERSION;
 document.getElementById("changelog").innerHTML = CHANGELOG.map(([v, m], i) => `<li class="${i === 0 ? "cur" : ""}"><span class="v">${v}</span><span>${m}</span></li>`).join("");
-const SMART = { all: "タスク", important: "優先", planned: "今後の予定" }; // 優先＝優先度4以上。「今日の予定」は廃止（2026-09-30）
-const SMART_ICO = { all: "🏠", important: "📶", planned: "📅" };
+const SMART = { all: "タスク" }; // スマートリストは「タスク」のみ（今日の予定・優先・今後の予定は廃止 2026-09-30）
+const SMART_ICO = { all: "🏠" };
 function prioBars(v, lg) { return `<span class="prio ${lg ? "lg" : ""}" data-act="prio" data-v="${v || 0}" title="優先度 ${v || 0}/5（バーをクリックで設定）">${[1, 2, 3, 4, 5].map(p => `<i data-p="${p}"></i>`).join("")}</span>`; }
 const TAG_CH = ["Teams", "Outlook", "LINE", "Excel", "Word", "PP", "Web", "その他ツール"];  // どこの案件か／何で作るか（PP＝PowerPoint）
 const TAG_TY = ["対応", "返信", "新規文章作成", "成果物作成", "手配", "検討", "その他種別"];  // 表示順  // どんな仕事か（対応＝アンケート回答・申請など、考えずにサッと片付ける軽い作業）
@@ -554,7 +555,7 @@ function task(id) { return db.tasks.find(t => t.id === id); }
 
 function addTask(title, listId, opt) {
   opt = opt || {};
-  const t = { id: newId(), title, done: false, priority: view === "important" ? 4 : 0, myDay: false, due: opt.due || (view === "planned" ? todayStr() : ""), remind: opt.remind || "", remindFired: false, tags: [], listId: listId || (SMART[view] ? "" : view), steps: [], note: "", ai: null, ct: now(), mt: now() };
+  const t = { id: newId(), title, done: false, priority: 0, myDay: false, due: opt.due || "", remind: opt.remind || "", remindFired: false, tags: [], listId: listId || (SMART[view] ? "" : view), steps: [], note: "", ai: null, ct: now(), mt: now() };
   db.tasks.push(t); save(db); scheduleSync();
   return t;
 }
@@ -575,8 +576,6 @@ function removeList(id) {
 function visibleTasks() {
   const td = todayStr();
   return db.tasks.filter(t => {
-    if (view === "important") return (t.priority || 0) >= 4;
-    if (view === "planned") return !!t.due;
     if (view === "all") return true;
     return t.listId === view;
   });
