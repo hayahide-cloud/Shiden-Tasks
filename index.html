@@ -188,6 +188,7 @@
   .quad ul { list-style: none; display: flex; flex-direction: column; gap: 6px; }
   .quad .task.card { min-height: 0; padding: 8px 10px; background: var(--row); }
   .quad .task.card .title { font-size: 14px; }
+  .task .prio { pointer-events: none; cursor: default; } /* 一覧のバーは表示のみ（行タップで詳細へ）。優先度は詳細で変える */
   .quad .task.card .prio { transform: scale(.85); transform-origin: right center; }
   .quad .empty { padding: 18px 4px; font-size: 12px; }
   @media (max-width: 900px) { .matrix { grid-template-columns: 1fr; } .quad { min-height: 0; } }
@@ -486,6 +487,7 @@ const KEY = "shiden_tasks_v1", DEL_KEY = "shiden_tasks_deleted_v1", CFG_KEY = "s
 
 /* ---- バージョンと更新履歴（公開版が反映されているかの確認用。変更のたびに先頭へ追記する） ---- */
 const CHANGELOG = [
+  ["2026-09-30.95", "一覧の優先度バーは表示のみに（行タップで詳細を開いて変更）"],
   ["2026-09-30.94", "スマホ: タスク追加後に詳細を開く。優先度バーを大きく（一覧36px・詳細44px）"],
   ["2026-09-30.93", "区分に「事務局長」を追加"],
   ["2026-09-30.92", "フィルタ「優先度高」も優先度3以上に統一"],
@@ -1102,7 +1104,6 @@ document.getElementById("tasks").addEventListener("click", e => {
   const t = task(li.dataset.id); if (!t) return;
   const act = e.target.closest("[data-act]") && e.target.closest("[data-act]").dataset.act;
   if (act === "toggle") { t.done = !t.done; t.doneAt = t.done ? now() : null; touch(t); render(); return; }
-  if (act === "prio") { const p = e.target.closest("[data-p]"); if (!p) return; const v = Number(p.dataset.p); t.priority = t.priority === v ? 0 : v; touch(t); render(); return; }
   selectedId = (selectedId === t.id && !isMobile() && panes.detail) ? null : t.id; if (!isMobile()) panes.detail = true; render();
 });
 function submitAdd() {
