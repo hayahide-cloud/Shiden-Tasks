@@ -183,8 +183,10 @@
   @media (min-width: 901px) { .detail:not(.show) { display: none; } }
   .detail .scroll { flex: 1; min-height: 0; overflow: auto; padding: 14px 16px; }
   .dcard { background: var(--surface-2); border-radius: 4px; margin-bottom: 8px; }
-  .dhead { display: flex; align-items: center; gap: 12px; padding: 10px 14px; }
-  .dhead .title-in { flex: 1; min-width: 0; font-size: 16px; font-weight: 600; background: transparent; border: none; color: #fff; outline: none; padding: 6px 0; }
+  .dhead { display: flex; align-items: flex-start; gap: 12px; padding: 12px 14px 8px; }
+  .dhead .chk, .dhead .prio { margin-top: 3px; }
+  /* タイトルは折り返して全文を見せる（textarea を自動伸縮） */
+  .dhead .title-in { flex: 1; min-width: 0; font-size: 16px; font-weight: 600; line-height: 1.4; background: transparent; border: none; color: #fff; outline: none; padding: 4px 0; resize: none; overflow: hidden; overflow-wrap: anywhere; font-family: inherit; }
   .dhead .title-in:focus { border-bottom: 1px solid var(--accent); }
   .steps { list-style: none; padding: 0 14px; }
   .steps li { display: flex; align-items: center; gap: 12px; min-height: 40px; border-bottom: 1px solid var(--grid); }
@@ -411,6 +413,7 @@ const KEY = "shiden_tasks_v1", DEL_KEY = "shiden_tasks_deleted_v1", CFG_KEY = "s
 
 /* ---- バージョンと更新履歴（公開版が反映されているかの確認用。変更のたびに先頭へ追記する） ---- */
 const CHANGELOG = [
+  ["2026-09-30.46", "詳細のタイトルを折り返し表示（長いタスク名も全文見える）"],
   ["2026-09-30.45", "優先度バーを大きく表示"],
   ["2026-09-30.44", "AIで分解の粒度を「意味のあるまとまり」単位（3〜6ステップ）に変更し、タグを段取りの骨組みに使う。細分化は各ステップの 🧩 で"],
   ["2026-09-30.43", "ADHD式タスク分解: 「🧩 AIで分解」でタスクを最小単位のステップに分解、各ステップの 🧩 でさらに細分化。詳細に「次の一歩」を強調、一覧にも次のステップを表示"],
@@ -625,7 +628,7 @@ function renderDetail() {
     <div class="scroll">
       <div class="dcard">
         <div class="dhead"><span class="chk ${t.done ? "on" : ""}" data-act="toggle">${t.done ? "✓" : ""}</span>
-          <input type="text" class="title-in" id="d-title" value="${esc(t.title)}">
+          <textarea class="title-in" id="d-title" rows="1" enterkeyhint="done">${esc(t.title)}</textarea>
           ${prioBars(t.priority, true)}</div>
         ${(() => { const f = t.steps.find(x => !x.done); return f && t.steps.length > 1 ? `<div class="first-step"><b>次の一歩:</b> ${esc(f.title)}</div>` : ""; })()}
         <ul class="steps" id="d-steps">${t.steps.map(s => `<li class="${s.done ? "done" : ""} ${s.child ? "child" : ""}" data-sid="${s.id}"><span class="chk ${s.done ? "on" : ""}" data-sact="toggle">${s.done ? "✓" : ""}</span><span class="t">${esc(s.title)}</span>${getCfg().openai && !s.child ? `<button class="sub" data-sact="brk" title="このステップをさらに細かく分解">🧩</button>` : ""}<button class="rm" data-sact="rm" title="ステップを削除">×</button></li>`).join("")}</ul>
@@ -964,7 +967,8 @@ function bindDetail(t) {
   const el = document.getElementById("detail");
   el.querySelector("#d-close").addEventListener("click", () => { selectedId = null; render(); });
   el.querySelector("#d-title").addEventListener("change", e => { t.title = e.target.value.trim() || t.title; touch(t); render(); });
-  el.querySelector("#d-title").addEventListener("keydown", e => { if (e.key === "Enter") e.target.blur(); });
+  el.querySelector("#d-title").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); e.target.blur(); } });
+  const ta = el.querySelector("#d-title"); const grow = () => { ta.style.height = "auto"; ta.style.height = ta.scrollHeight + "px"; }; ta.addEventListener("input", grow); grow();
   el.querySelector(".dhead [data-act=toggle]").addEventListener("click", () => { t.done = !t.done; touch(t); render(); });
   el.querySelector(".dhead .prio").addEventListener("click", e => { const p = e.target.closest("[data-p]"); if (!p) return; const v = Number(p.dataset.p); t.priority = t.priority === v ? 0 : v; touch(t); render(); });
   el.querySelector("#d-myday").addEventListener("click", e => { if (e.target.closest("[data-clear]")) { t.myDay = false; } else if (!t.myDay) t.myDay = true; else return; touch(t); render(); });
