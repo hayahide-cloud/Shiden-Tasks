@@ -339,8 +339,12 @@
     .listhead h2 { font-size: 21px; }
     .tasks-scroll { padding: 0 12px 8px; }
     .task { min-height: 56px; gap: 12px; -webkit-touch-callout: none; user-select: none; }
-    .prio { height: 30px; gap: 4px; padding: 4px 8px; } .prio i { width: 7px; }
-    .prio i:nth-child(1) { height: 8px; } .prio i:nth-child(2) { height: 13px; } .prio i:nth-child(3) { height: 18px; } .prio i:nth-child(4) { height: 22px; } .prio i:nth-child(5) { height: 27px; }
+    /* スマホ: 優先度バーを大きく（一覧 36px・詳細 44px）。バー間の当たり判定も広げる */
+    .prio { height: 36px; gap: 5px; padding: 4px 10px; } .prio i { width: 9px; }
+    .prio i:nth-child(1) { height: 10px; } .prio i:nth-child(2) { height: 16px; } .prio i:nth-child(3) { height: 22px; } .prio i:nth-child(4) { height: 27px; } .prio i:nth-child(5) { height: 32px; }
+    .prio i::before { left: -3px; right: -3px; top: -20px; bottom: -8px; }
+    .prio.lg { height: 44px; gap: 6px; padding: 4px 12px; } .prio.lg i { width: 11px; }
+    .prio.lg i:nth-child(1) { height: 12px; } .prio.lg i:nth-child(2) { height: 19px; } .prio.lg i:nth-child(3) { height: 26px; } .prio.lg i:nth-child(4) { height: 33px; } .prio.lg i:nth-child(5) { height: 40px; }
     .nav li { -webkit-touch-callout: none; user-select: none; }
     /* ○のタップ判定を広げる: 見た目は22pxのまま、透明な当たり判定を上下左右14px分足す（約50px四方） */
     .chk { width: 22px; height: 22px; position: relative; }
@@ -482,6 +486,7 @@ const KEY = "shiden_tasks_v1", DEL_KEY = "shiden_tasks_deleted_v1", CFG_KEY = "s
 
 /* ---- バージョンと更新履歴（公開版が反映されているかの確認用。変更のたびに先頭へ追記する） ---- */
 const CHANGELOG = [
+  ["2026-09-30.94", "スマホ: タスク追加後に詳細を開く。優先度バーを大きく（一覧36px・詳細44px）"],
   ["2026-09-30.93", "区分に「事務局長」を追加"],
   ["2026-09-30.92", "フィルタ「優先度高」も優先度3以上に統一"],
   ["2026-09-30.91", "マトリクスの重要判定を優先度3以上に"],
@@ -1107,7 +1112,7 @@ function submitAdd() {
   const t = addTask(v, null, { due: dueIn.value, remind: remIn.value }); if (addNoDue && !dueIn.value) t.noDue = true; if (addPrivate) t.tags = ["プライベート"]; if (addNoDue || addPrivate) save(db); input.value = "";
   dueIn.value = ""; remIn.value = ""; addNoDue = false; addPrivate = false; renderAddTools();
   // 追加時は詳細を開かず一覧に足すだけ（PC・スマホ共通）。AIの問い返しは裏で走り、行に「⚡ 回答待ち」が付く
-  if (!isMobile()) { selectedId = t.id; panes.detail = true; } // PCのみ: 追加直後に詳細を開き、タグ・優先度・期限をその場で付ける。スマホは一覧のまま
+  selectedId = t.id; if (!isMobile()) panes.detail = true; // 追加直後に詳細を開き、タグ・優先度・期限をその場で付ける（PC・スマホ共通）
   render();
   // AI補助は自動では起動しない。タグ付け等を済ませてから詳細の「AIに相談する」で発動する
 }
