@@ -128,7 +128,7 @@
   .chk { width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid var(--ink-2); flex: none; display: grid; place-items: center; font-size: 11px; color: #fff; cursor: pointer; }
   .task.done .chk, .chk.on { background: var(--accent-deep); border-color: var(--accent-deep); }
   .task .body { flex: 1; min-width: 0; padding: 8px 0; }
-  .task .title { font-size: 14px; overflow-wrap: anywhere; }
+  .task .title { font-size: 16px; overflow-wrap: anywhere; }
   .task .meta { display: flex; gap: 6px; flex-wrap: wrap; font-size: 12px; color: var(--muted); margin-top: 1px; }
   .task .meta span + span::before { content: "•"; margin-right: 6px; opacity: .6; }
   .task .meta .over { color: var(--bad); font-weight: 600; }
@@ -329,7 +329,7 @@
     .chk { width: 22px; height: 22px; position: relative; }
     .chk::before { content: ""; position: absolute; inset: -14px; }
     .steps .chk { width: 18px; height: 18px; }
-    .task .title { font-size: 15px; }
+    .task .title { font-size: 17px; }
     .add { margin: 6px 10px max(10px, env(safe-area-inset-bottom)); }
     .add input { font-size: 16px; }
     .add { gap: 8px; padding-right: 8px; }
@@ -455,7 +455,7 @@
 <script>
 /* ================================================================
    データ層（localStorage が主・GitHub は同期先）
-   tasks: [{id,title,done,priority(0-5),myDay,due,noDue(期限を設けない意思表示),remind,remindFired,tags,listId,steps:[{id,title,done}],note,ai,ct,mt}]
+   tasks: [{id,title,done,doneAt(完了時刻),priority(0-5),myDay,due,noDue(期限を設けない意思表示),remind,remindFired,tags,listId,steps:[{id,title,done}],note,ai,ct,mt}]
    remind: "YYYY-MM-DDTHH:MM"（ローカル時刻）。アプリを開いている間だけ監視し、時刻が来たら通知する
    tags: ["Teams","文章"] など。チャネル（TAG_CH）／種別（TAG_TY）の定型＋自由タグ
    lists: [{id,name,ct,mt}]   deleted: [id...]（墓標。端末間で削除を伝播）
@@ -464,6 +464,8 @@ const KEY = "shiden_tasks_v1", DEL_KEY = "shiden_tasks_deleted_v1", CFG_KEY = "s
 
 /* ---- バージョンと更新履歴（公開版が反映されているかの確認用。変更のたびに先頭へ追記する） ---- */
 const CHANGELOG = [
+  ["2026-09-30.81", "一覧のタスク名を大きく（PC 16px／スマホ 17px）"],
+  ["2026-09-30.80", "完了タスクは翌日に「🗄 アーカイブ」へ自動移動（当日は完了欄に残る）"],
   ["2026-09-30.79", "サイドバーの格納は廃止（詳細ペインの格納のみ）"],
   ["2026-09-30.78", "PC: 詳細ペインを × で格納（▭ 詳細 で再表示・タスク選択でも再表示）"],
   ["2026-09-30.77", "並べ替え: 優先度⇄期限を主副で組み合わせ。「追加日」は廃止"],
@@ -547,8 +549,8 @@ const CHANGELOG = [
 const VERSION = CHANGELOG[0][0];
 document.getElementById("ver").textContent = "v" + VERSION;
 document.getElementById("changelog").innerHTML = CHANGELOG.map(([v, m], i) => `<li class="${i === 0 ? "cur" : ""}"><span class="v">${v}</span><span>${m}</span></li>`).join("");
-const SMART = { all: "タスク" }; // スマートリストは「タスク」のみ（今日の予定・優先・今後の予定は廃止 2026-09-30）
-const SMART_ICO = { all: "🏠" };
+const SMART = { all: "タスク", archive: "アーカイブ" }; // アーカイブ＝前日以前に完了したタスク（当日完了分は「タスク」の完了欄に残る）
+const SMART_ICO = { all: "🏠", archive: "🗄" };
 function prioBars(v, lg) { return `<span class="prio ${lg ? "lg" : ""}" data-act="prio" data-v="${v || 0}" title="優先度 ${v || 0}/5（バーをクリックで設定）">${[1, 2, 3, 4, 5].map(p => `<i data-p="${p}"></i>`).join("")}</span>`; }
 const TAG_CH = ["Teams", "Outlook", "LINE", "電話", "Excel", "Word", "PP", "Web", "その他ツール"];  // どこの案件か／何で作るか（PP＝PowerPoint）
 const TAG_TY = ["確認", "対応", "返信", "新規文章作成", "成果物作成", "手配", "購入", "調査", "検討", "その他種別"];  // 表示順
@@ -611,6 +613,8 @@ function fmtRemind(r) {
   const [y, mo, dd] = d.split("-").map(Number);
   return mo + "/" + dd + " " + time;
 }
+function dateOf(ms) { const d = new Date(ms); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
+function isArchived(t) { return t.done && dateOf(t.doneAt || t.mt) < todayStr(); } // 完了日が今日より前ならアーカイブ
 const isMobile = () => window.innerWidth <= 900;
 
 let db = load();
@@ -649,7 +653,8 @@ function removeList(id) {
 function visibleTasks() {
   const td = todayStr();
   return db.tasks.filter(t => {
-    return true; // リスト分け廃止: 常に全タスク
+    if (view === "archive") return isArchived(t);
+    return !isArchived(t); // 前日以前に完了したものはアーカイブへ
   });
 }
 
@@ -660,7 +665,7 @@ function render() { migrateTags(); renderNav(); renderList(); renderDetail(); do
 let mobileScreen = "home"; // スマホ: "home"=リスト一覧 / "list"=タスク一覧
 
 function renderNav() {
-  const cnt = k => { const v = view; view = k; const n = visibleTasks().filter(t => !t.done && !(t.tags || []).includes("プライベート")).length; view = v; return n; };
+  const cnt = k => { if (k === "archive") return 0; const v = view; view = k; const n = visibleTasks().filter(t => !t.done && !(t.tags || []).includes("プライベート")).length; view = v; return n; };
   const item = (k, ico, name) => `<li class="${view === k ? "active" : ""}" data-view="${k}"><span class="ico">${ico}</span><span class="nm">${esc(name)}</span><span class="cnt">${cnt(k) || ""}</span></li>`;
   let html = Object.keys(SMART).map(k => item(k, SMART_ICO[k], SMART[k])).join("");
   // リスト分けは廃止（2026-09-30）。自作リストは表示しない（データは残るが、タスクはすべて「タスク」に出る）
@@ -685,19 +690,21 @@ function renderList() {
   const nToday = all.filter(t => !t.done && t.due && t.due <= todayStr()).length;
   const nHigh = all.filter(t => !t.done && (t.priority || 0) >= 4).length;
   const incChip = `<span class="tag warn ${tagFilter === INCOMPLETE ? "on" : ""} ${nInc ? "" : "zero"}" data-tag="${INCOMPLETE}" title="ツール・種別・優先度・期限のどれかが未設定、または期限超過のタスク（プライベートはツール・優先度不要）">⚠ 不完全${nInc ? " " + nInc : ""}</span><span class="tag today ${tagFilter === TODAY ? "on" : ""} ${nToday ? "" : "zero"}" data-tag="${TODAY}" title="期限が今日のタスク（超過分も含む）">📅 今日締切${nToday ? " " + nToday : ""}</span><span class="tag high ${tagFilter === HIGH ? "on" : ""} ${nHigh ? "" : "zero"}" data-tag="${HIGH}" title="優先度4以上のタスク">📶 優先度高${nHigh ? " " + nHigh : ""}</span><span class="sep"></span>`;
+  document.getElementById("tagbar").hidden = view === "archive";
   document.getElementById("tagbar").innerHTML = incChip + TAG_CH.map(chipOf).join("") + `<span class="sep"></span>` + TAG_TY.map(chipOf).join("") + `<span class="sep"></span>` + TAG_EX.map(chipOf).join("") + (free.length ? `<span class="sep"></span>` + free.map(chipOf).join("") : "") + (tagFilter ? `<button class="clear" data-tag="">× 絞り込み解除</button>` : "");
   const isPriv = t => (t.tags || []).includes("プライベート");
   let ts = tagFilter === INCOMPLETE ? all.filter(tagIncomplete) : tagFilter === TODAY ? all.filter(t => t.due && t.due <= todayStr()) : tagFilter === HIGH ? all.filter(t => (t.priority || 0) >= 4) : tagFilter ? all.filter(t => (t.tags || []).includes(tagFilter)) : all;
   // フィルタなしの既定表示ではプライベートを隠す（何かフィルタを掛けたときだけ登場する）
   const hiddenPriv = tagFilter ? 0 : ts.filter(t => isPriv(t) && !t.done).length;
   if (!tagFilter) ts = ts.filter(t => !isPriv(t));
+  document.querySelector(".add").hidden = view === "archive"; document.getElementById("list-date").textContent = view === "archive" ? "前日以前に完了したタスク" : document.getElementById("list-date").textContent;
   const open = sortOpen(ts.filter(t => !t.done));
   document.getElementById("sort-lbl").textContent = SORT_LBL[sortCfg.key] + "・" + DIR_LBL[sortCfg.key][sortCfg.dir === "asc" ? 1 : 0];
   document.querySelector("#sort-pop [data-dir=desc]").textContent = DIR_LBL[sortCfg.key][0];
   document.querySelector("#sort-pop [data-dir=asc]").textContent = DIR_LBL[sortCfg.key][1];
   document.querySelectorAll("#sort-pop [data-sort]").forEach(b => b.classList.toggle("on", b.dataset.sort === sortCfg.key));
   document.querySelectorAll("#sort-pop [data-dir]").forEach(b => b.classList.toggle("on", b.dataset.dir === sortCfg.dir));
-  const done = ts.filter(t => t.done).sort((a, b) => b.mt - a.mt);
+  const done = ts.filter(t => t.done).sort((a, b) => (b.doneAt || b.mt) - (a.doneAt || a.mt));
   const td = todayStr();
   const row = t => {
     const meta = [];
@@ -717,9 +724,10 @@ function renderList() {
     </li>`;
   };
   let html = open.map(row).join("");
-  if (!open.length && !done.length) html += `<div class="empty"><div class="big">${list ? "☰" : SMART_ICO[view]}</div>${view === "all" ? "下の欄からタスクを追加できます。" : "タスクはありません"}</div>`;
+  if (!open.length && !done.length) html += `<div class="empty"><div class="big">${list ? "☰" : SMART_ICO[view]}</div>${view === "all" ? "下の欄からタスクを追加できます。" : view === "archive" ? "アーカイブは空です。完了した翌日からここに移ります。" : "タスクはありません"}</div>`;
   if (hiddenPriv) html += `<div class="priv-note">🔒 プライベート ${hiddenPriv}件は非表示（フィルタで「プライベート」を選ぶと表示）</div>`;
-  if (done.length) html += `<div class="done-head ${doneOpen ? "" : "closed"}" id="done-head"><span class="chev">▾</span>完了 ${done.length}</div>` + (doneOpen ? done.map(row).join("") : "");
+  if (view === "archive") html += done.map(row).join("");
+  else if (done.length) html += `<div class="done-head ${doneOpen ? "" : "closed"}" id="done-head"><span class="chev">▾</span>完了 ${done.length}（翌日にアーカイブへ）</div>` + (doneOpen ? done.map(row).join("") : "");
   document.getElementById("tasks").innerHTML = html;
 }
 
@@ -1021,7 +1029,7 @@ document.getElementById("tasks").addEventListener("click", e => {
   const li = e.target.closest("li.task"); if (!li) return;
   const t = task(li.dataset.id); if (!t) return;
   const act = e.target.closest("[data-act]") && e.target.closest("[data-act]").dataset.act;
-  if (act === "toggle") { t.done = !t.done; touch(t); render(); return; }
+  if (act === "toggle") { t.done = !t.done; t.doneAt = t.done ? now() : null; touch(t); render(); return; }
   if (act === "prio") { const p = e.target.closest("[data-p]"); if (!p) return; const v = Number(p.dataset.p); t.priority = t.priority === v ? 0 : v; touch(t); render(); return; }
   selectedId = (selectedId === t.id && !isMobile() && panes.detail) ? null : t.id; if (!isMobile()) panes.detail = true; render();
 });
@@ -1121,7 +1129,7 @@ function bindDetail(t) {
   el.querySelector("#d-title").addEventListener("change", e => { t.title = e.target.value.trim() || t.title; touch(t); render(); });
   el.querySelector("#d-title").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); e.target.blur(); } });
   const ta = el.querySelector("#d-title"); const grow = () => { ta.style.height = "auto"; ta.style.height = ta.scrollHeight + "px"; }; ta.addEventListener("input", grow); grow();
-  el.querySelector(".dhead [data-act=toggle]").addEventListener("click", () => { t.done = !t.done; touch(t); render(); });
+  el.querySelector(".dhead [data-act=toggle]").addEventListener("click", () => { t.done = !t.done; t.doneAt = t.done ? now() : null; touch(t); render(); });
   el.querySelector(".dhead .prio").addEventListener("click", e => { const p = e.target.closest("[data-p]"); if (!p) return; const v = Number(p.dataset.p); t.priority = t.priority === v ? 0 : v; touch(t); render(); });
   const dd = el.querySelector("#d-due"); if (dd) dd.addEventListener("change", e => { t.due = e.target.value; if (t.due) t.noDue = false; touch(t); render(); });
   el.querySelector(".quick").addEventListener("click", e => { const b = e.target.closest("[data-quick]"); if (!b) return; t.due = b.dataset.quick; t.noDue = false; touch(t); render(); });
