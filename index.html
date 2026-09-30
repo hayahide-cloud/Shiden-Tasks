@@ -79,7 +79,7 @@
     .app.detail-hidden { grid-template-columns: var(--side-w) 1fr 0; }
     .app.detail-hidden .detail { display: none; }
     #detail-collapse.on { color: var(--accent-hi); }
-    .detail .placeholder .close { position: absolute; top: 10px; right: 12px; }
+    .detail .placeholder .close { position: absolute; top: 27px; right: 30px; } /* タスク表示時の × と同じ位置に揃える */
     .detail { position: relative; }
   }
   @media (max-width: 900px) { .pc-only { display: none !important; } }
@@ -266,8 +266,8 @@
   .dnote { padding: 10px 14px; }
   .dnote textarea { width: 100%; min-height: 96px; resize: vertical; font-size: 13.5px; background: transparent; color: var(--ink); border: none; outline: none; }
   .dnote textarea::placeholder { color: var(--ink-2); }
-  .dhead .close { flex: none; margin-top: 0; background: none; border: none; color: var(--muted); font-size: 24px; line-height: 1; cursor: pointer; padding: 0 2px; }
-  .dhead .close:hover { color: #fff; }
+  .dhead .close, .detail .placeholder .close { flex: none; margin: 0; background: none; border: none; color: var(--muted); font-size: 24px; line-height: 1; cursor: pointer; padding: 0 2px; font-family: inherit; }
+  .dhead .close:hover, .detail .placeholder .close:hover { color: #fff; }
   .dfoot { flex: none; display: flex; align-items: center; justify-content: space-between; padding: 8px 10px; padding-bottom: max(8px, env(safe-area-inset-bottom)); border-top: 1px solid var(--grid); font-size: 12px; color: var(--muted); }
   .dfoot .ibtn { font-size: 16px; }
 
@@ -480,6 +480,7 @@ const KEY = "shiden_tasks_v1", DEL_KEY = "shiden_tasks_deleted_v1", CFG_KEY = "s
 
 /* ---- バージョンと更新履歴（公開版が反映されているかの確認用。変更のたびに先頭へ追記する） ---- */
 const CHANGELOG = [
+  ["2026-09-30.87", "詳細ペイン未選択時の × の見た目を統一"],
   ["2026-09-30.86", "マトリクスの緊急判定を「超過＋3営業日以内」に（土日は飛ばす。木曜なら月曜まで）"],
   ["2026-09-30.85", "スマホ: 一覧タイトルのタップで表示切替（タスク／マトリクス／アーカイブ）"],
   ["2026-09-30.84", "サイドバーに「⊞ マトリクス」（アイゼンハワー4象限。重要=優先度4以上、緊急=期限が超過・今日・明日）"],
