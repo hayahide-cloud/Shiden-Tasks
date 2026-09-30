@@ -186,7 +186,7 @@
   .dhead { display: flex; align-items: flex-start; gap: 12px; padding: 12px 14px 8px; }
   .dhead .chk, .dhead .prio { margin-top: 3px; }
   /* タイトルは折り返して全文を見せる（textarea を自動伸縮） */
-  .dhead .title-in { flex: 1; min-width: 0; font-size: 16px; font-weight: 600; line-height: 1.4; background: transparent; border: none; color: #fff; outline: none; padding: 4px 0; resize: none; overflow: hidden; overflow-wrap: anywhere; font-family: inherit; }
+  .dhead .title-in { flex: 1; min-width: 0; font-size: 16px; font-weight: 600; line-height: 1.4; background: transparent; border: none; color: #fff; outline: none; padding: 4px 0; resize: none; overflow: hidden; overflow-wrap: anywhere; font-family: inherit; min-height: calc(1.4em * 2 + 8px); } /* 最初から2行分の高さを確保し、折り返しで高さが変わらないようにする */
   .dhead .title-in:focus { border-bottom: 1px solid var(--accent); }
   .steps { list-style: none; padding: 0 14px; }
   .steps li { display: flex; align-items: center; gap: 12px; min-height: 40px; border-bottom: 1px solid var(--grid); }
@@ -413,6 +413,7 @@ const KEY = "shiden_tasks_v1", DEL_KEY = "shiden_tasks_deleted_v1", CFG_KEY = "s
 
 /* ---- バージョンと更新履歴（公開版が反映されているかの確認用。変更のたびに先頭へ追記する） ---- */
 const CHANGELOG = [
+  ["2026-09-30.48", "詳細のタイトル欄を最初から2行分の高さに固定"],
   ["2026-09-30.47", "「タグ不完全」を「不完全」に改名し、優先度未設定も対象に"],
   ["2026-09-30.46", "詳細のタイトルを折り返し表示（長いタスク名も全文見える）"],
   ["2026-09-30.45", "優先度バーを大きく表示"],
@@ -629,7 +630,7 @@ function renderDetail() {
     <div class="scroll">
       <div class="dcard">
         <div class="dhead"><span class="chk ${t.done ? "on" : ""}" data-act="toggle">${t.done ? "✓" : ""}</span>
-          <textarea class="title-in" id="d-title" rows="1" enterkeyhint="done">${esc(t.title)}</textarea>
+          <textarea class="title-in" id="d-title" rows="2" enterkeyhint="done">${esc(t.title)}</textarea>
           ${prioBars(t.priority, true)}</div>
         ${(() => { const f = t.steps.find(x => !x.done); return f && t.steps.length > 1 ? `<div class="first-step"><b>次の一歩:</b> ${esc(f.title)}</div>` : ""; })()}
         <ul class="steps" id="d-steps">${t.steps.map(s => `<li class="${s.done ? "done" : ""} ${s.child ? "child" : ""}" data-sid="${s.id}"><span class="chk ${s.done ? "on" : ""}" data-sact="toggle">${s.done ? "✓" : ""}</span><span class="t">${esc(s.title)}</span>${getCfg().openai && !s.child ? `<button class="sub" data-sact="brk" title="このステップをさらに細かく分解">🧩</button>` : ""}<button class="rm" data-sact="rm" title="ステップを削除">×</button></li>`).join("")}</ul>
