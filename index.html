@@ -243,6 +243,8 @@
   .dnote { padding: 10px 14px; }
   .dnote textarea { width: 100%; min-height: 96px; resize: vertical; font-size: 13.5px; background: transparent; color: var(--ink); border: none; outline: none; }
   .dnote textarea::placeholder { color: var(--ink-2); }
+  .dhead .close { flex: none; margin-top: 0; background: none; border: none; color: var(--muted); font-size: 24px; line-height: 1; cursor: pointer; padding: 0 2px; }
+  .dhead .close:hover { color: #fff; }
   .dfoot { flex: none; display: flex; align-items: center; justify-content: space-between; padding: 8px 10px; padding-bottom: max(8px, env(safe-area-inset-bottom)); border-top: 1px solid var(--grid); font-size: 12px; color: var(--muted); }
   .dfoot .ibtn { font-size: 16px; }
 
@@ -454,6 +456,7 @@ const KEY = "shiden_tasks_v1", DEL_KEY = "shiden_tasks_deleted_v1", CFG_KEY = "s
 
 /* ---- バージョンと更新履歴（公開版が反映されているかの確認用。変更のたびに先頭へ追記する） ---- */
 const CHANGELOG = [
+  ["2026-09-30.74", "詳細を閉じるボタンを右上の × に移動"],
   ["2026-09-30.73", "プライベートのタスクは既定表示では隠し、フィルタを掛けたときだけ表示"],
   ["2026-09-30.72", "プライベートはツール未設定でも不完全にしない（種別は必要）"],
   ["2026-09-30.71", "プライベートを付けると既定で「期限なし」になる（追加バー・詳細とも）"],
@@ -721,7 +724,7 @@ function renderDetail() {
       <div class="dcard">
         <div class="dhead"><span class="chk ${t.done ? "on" : ""}" data-act="toggle">${t.done ? "✓" : ""}</span>
           <textarea class="title-in" id="d-title" rows="2" enterkeyhint="done">${esc(t.title)}</textarea>
-          ${prioBars(t.priority, true)}</div>
+          ${prioBars(t.priority, true)}<button class="close" id="d-close" title="詳細を閉じる">×</button></div>
         ${(() => { const f = t.steps.find(x => !x.done); return f && t.steps.length > 1 ? `<div class="first-step"><b>次の一歩:</b> ${esc(f.title)}</div>` : ""; })()}
         <ul class="steps" id="d-steps">${t.steps.map(s => `<li class="${s.done ? "done" : ""} ${s.child ? "child" : ""}" data-sid="${s.id}"><span class="chk ${s.done ? "on" : ""}" data-sact="toggle">${s.done ? "✓" : ""}</span><span class="t">${esc(s.title)}</span>${getCfg().openai && !s.child ? `<button class="sub" data-sact="brk" title="このステップをさらに細かく分解">🧩</button>` : ""}<button class="rm" data-sact="rm" title="ステップを削除">×</button></li>`).join("")}</ul>
         <div class="stepadd"><span class="plus">＋</span><input type="text" id="d-step" placeholder="${t.steps.length ? "次のステップ" : "ステップの追加"}" enterkeyhint="done">${getCfg().openai ? `<button class="brk" id="d-brk" title="AIがタスクを最小単位のステップに分解します">🧩 AIで分解</button>` : ""}</div>
@@ -742,7 +745,6 @@ function renderDetail() {
       ${renderAi(t)}
     </div>
     <div class="dfoot">
-      <button class="ibtn" id="d-close" title="詳細を閉じる">›|</button>
       <span>作成日: ${created}</span>
       <button class="ibtn del" id="d-delete" title="タスクの削除">🗑</button>
     </div>`;
