@@ -441,6 +441,7 @@ const KEY = "shiden_tasks_v1", DEL_KEY = "shiden_tasks_deleted_v1", CFG_KEY = "s
 
 /* ---- バージョンと更新履歴（公開版が反映されているかの確認用。変更のたびに先頭へ追記する） ---- */
 const CHANGELOG = [
+  ["2026-09-30.62", "並べ替えの向きを項目ごとの言葉に（優先度=高い順／期限=近い順／追加日=新しい順 が既定）"],
   ["2026-09-30.61", "フィルタに「📶 優先度高」（4以上）を追加"],
   ["2026-09-30.60", "フィルタに「📅 今日締切」を追加（期限が今日以前の未完了）"],
   ["2026-09-30.59", "期限超過のタスクを赤字で表示し「不完全」に含める（期限を再設定するまで）"],
@@ -518,13 +519,15 @@ let tagFilter = null; // 一覧のタグ絞り込み（null=すべて）
 // 並べ替え（端末ごとに記憶）。key: priority / due / created、dir: desc / asc
 const SORT_KEY = "shiden_tasks_sort";
 let sortCfg = (() => { try { return Object.assign({ key: "priority", dir: "desc" }, JSON.parse(localStorage.getItem(SORT_KEY)) || {}); } catch (e) { return { key: "priority", dir: "desc" }; } })();
+// dir: "desc"＝各項目の「上に来てほしい順」（優先度=高い順／期限=近い順／追加日=新しい順）、"asc"＝その逆
 const SORT_LBL = { priority: "優先度", due: "期限", created: "追加日" };
+const DIR_LBL = { priority: ["高い順", "低い順"], due: ["近い順", "遠い順"], created: ["新しい順", "古い順"] };
 function sortOpen(list) {
   const dir = sortCfg.dir === "asc" ? 1 : -1;
   const cmp = {
     priority: (a, b) => ((a.priority || 0) - (b.priority || 0)) * dir || (a.due || "9").localeCompare(b.due || "9") || b.ct - a.ct,
-    due: (a, b) => { const x = a.due || "", y = b.due || ""; if (!x && !y) return b.ct - a.ct; if (!x) return 1; if (!y) return -1; return x.localeCompare(y) * dir || ((b.priority || 0) - (a.priority || 0)); }, // 期限なしは常に末尾
-    created: (a, b) => (a.ct - b.ct) * dir,
+    due: (a, b) => { const x = a.due || "", y = b.due || ""; if (!x && !y) return b.ct - a.ct; if (!x) return 1; if (!y) return -1; return x.localeCompare(y) * -dir || ((b.priority || 0) - (a.priority || 0)); }, // 「近い順」（desc）で日付の早いものが上。期限なしは常に末尾
+    created: (a, b) => (b.ct - a.ct) * -dir, // 「新しい順」（desc）で追加が新しいものが上
   }[sortCfg.key];
   return list.sort(cmp);
 }
@@ -644,7 +647,9 @@ function renderList() {
   document.getElementById("tagbar").innerHTML = incChip + TAG_CH.map(chipOf).join("") + `<span class="sep"></span>` + TAG_TY.map(chipOf).join("") + (free.length ? `<span class="sep"></span>` + free.map(chipOf).join("") : "") + (tagFilter ? `<button class="clear" data-tag="">× 絞り込み解除</button>` : "");
   const ts = tagFilter === INCOMPLETE ? all.filter(tagIncomplete) : tagFilter === TODAY ? all.filter(t => t.due && t.due <= todayStr()) : tagFilter === HIGH ? all.filter(t => (t.priority || 0) >= 4) : tagFilter ? all.filter(t => (t.tags || []).includes(tagFilter)) : all;
   const open = sortOpen(ts.filter(t => !t.done));
-  document.getElementById("sort-lbl").textContent = SORT_LBL[sortCfg.key] + (sortCfg.dir === "asc" ? " ↑" : " ↓");
+  document.getElementById("sort-lbl").textContent = SORT_LBL[sortCfg.key] + "・" + DIR_LBL[sortCfg.key][sortCfg.dir === "asc" ? 1 : 0];
+  document.querySelector("#sort-pop [data-dir=desc]").textContent = DIR_LBL[sortCfg.key][0];
+  document.querySelector("#sort-pop [data-dir=asc]").textContent = DIR_LBL[sortCfg.key][1];
   document.querySelectorAll("#sort-pop [data-sort]").forEach(b => b.classList.toggle("on", b.dataset.sort === sortCfg.key));
   document.querySelectorAll("#sort-pop [data-dir]").forEach(b => b.classList.toggle("on", b.dataset.dir === sortCfg.dir));
   const done = ts.filter(t => t.done).sort((a, b) => b.mt - a.mt);
