@@ -482,6 +482,7 @@ const KEY = "shiden_tasks_v1", DEL_KEY = "shiden_tasks_deleted_v1", CFG_KEY = "s
 
 /* ---- バージョンと更新履歴（公開版が反映されているかの確認用。変更のたびに先頭へ追記する） ---- */
 const CHANGELOG = [
+  ["2026-09-30.92", "フィルタ「優先度高」も優先度3以上に統一"],
   ["2026-09-30.91", "マトリクスの重要判定を優先度3以上に"],
   ["2026-09-30.90", "「マトリクス」を「アイゼンハワーマトリクス」に改名"],
   ["2026-09-30.89", "表示切替（マトリクス／アーカイブ／タスク）でタグ絞り込みを解除"],
@@ -732,12 +733,12 @@ function renderList() {
   const free = tagsHere.filter(g => !TAG_CH.includes(g) && !TAG_TY.includes(g) && !TAG_EX.includes(g));
   const nInc = all.filter(t => !t.done && tagIncomplete(t)).length;
   const nToday = all.filter(t => !t.done && t.due && t.due <= todayStr()).length;
-  const nHigh = all.filter(t => !t.done && (t.priority || 0) >= 4).length;
-  const incChip = `<span class="tag warn ${tagFilter === INCOMPLETE ? "on" : ""} ${nInc ? "" : "zero"}" data-tag="${INCOMPLETE}" title="ツール・種別・優先度・期限のどれかが未設定、または期限超過のタスク（プライベートはツール・優先度不要）">⚠ 不完全${nInc ? " " + nInc : ""}</span><span class="tag today ${tagFilter === TODAY ? "on" : ""} ${nToday ? "" : "zero"}" data-tag="${TODAY}" title="期限が今日のタスク（超過分も含む）">📅 今日締切${nToday ? " " + nToday : ""}</span><span class="tag high ${tagFilter === HIGH ? "on" : ""} ${nHigh ? "" : "zero"}" data-tag="${HIGH}" title="優先度4以上のタスク">📶 優先度高${nHigh ? " " + nHigh : ""}</span><span class="sep"></span>`;
+  const nHigh = all.filter(t => !t.done && isImportant(t)).length;
+  const incChip = `<span class="tag warn ${tagFilter === INCOMPLETE ? "on" : ""} ${nInc ? "" : "zero"}" data-tag="${INCOMPLETE}" title="ツール・種別・優先度・期限のどれかが未設定、または期限超過のタスク（プライベートはツール・優先度不要）">⚠ 不完全${nInc ? " " + nInc : ""}</span><span class="tag today ${tagFilter === TODAY ? "on" : ""} ${nToday ? "" : "zero"}" data-tag="${TODAY}" title="期限が今日のタスク（超過分も含む）">📅 今日締切${nToday ? " " + nToday : ""}</span><span class="tag high ${tagFilter === HIGH ? "on" : ""} ${nHigh ? "" : "zero"}" data-tag="${HIGH}" title="優先度3以上のタスク">📶 優先度高${nHigh ? " " + nHigh : ""}</span><span class="sep"></span>`;
   document.getElementById("tagbar").hidden = view === "archive";
   document.getElementById("tagbar").innerHTML = incChip + TAG_CH.map(chipOf).join("") + `<span class="sep"></span>` + TAG_TY.map(chipOf).join("") + `<span class="sep"></span>` + TAG_EX.map(chipOf).join("") + (free.length ? `<span class="sep"></span>` + free.map(chipOf).join("") : "") + (tagFilter ? `<button class="clear" data-tag="">× 絞り込み解除</button>` : "");
   const isPriv = t => (t.tags || []).includes("プライベート");
-  let ts = tagFilter === INCOMPLETE ? all.filter(tagIncomplete) : tagFilter === TODAY ? all.filter(t => t.due && t.due <= todayStr()) : tagFilter === HIGH ? all.filter(t => (t.priority || 0) >= 4) : tagFilter ? all.filter(t => (t.tags || []).includes(tagFilter)) : all;
+  let ts = tagFilter === INCOMPLETE ? all.filter(tagIncomplete) : tagFilter === TODAY ? all.filter(t => t.due && t.due <= todayStr()) : tagFilter === HIGH ? all.filter(isImportant) : tagFilter ? all.filter(t => (t.tags || []).includes(tagFilter)) : all;
   // フィルタなしの既定表示ではプライベートを隠す（何かフィルタを掛けたときだけ登場する）
   const hiddenPriv = tagFilter ? 0 : ts.filter(t => isPriv(t) && !t.done).length;
   if (!tagFilter) ts = ts.filter(t => !isPriv(t));
