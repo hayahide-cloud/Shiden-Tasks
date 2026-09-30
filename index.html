@@ -120,6 +120,7 @@
   .tl li .nm { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); }
   .tl li .du { color: var(--muted); font-size: 13px; white-space: nowrap; }
   .tl li.over { border: 1px solid rgba(248,113,113,0.5); } .tl li.over .tm { color: var(--bad); }
+  .tl li.spill { opacity: .7; } .tl li.spill .tm { color: var(--muted); }
   .tl li.done { opacity: .45; } .tl li.done .nm { text-decoration: line-through; }
   .tl li.noest .du { color: var(--warn); }
   .tl .tend { grid-template-columns: 56px 1fr; } .tl li.done { grid-template-columns: 56px 1fr auto; }
@@ -456,8 +457,8 @@
     <h3>今日の時間配分</h3>
     <label>始業・終業・休憩から、その日に使える時間を計算します。</label>
     <div class="cfg-grid">
-      <label style="margin:0">始業 <input id="cfg-wstart" type="time" value="09:00"></label>
-      <label style="margin:0">終業 <input id="cfg-wend" type="time" value="18:00"></label>
+      <label style="margin:0">始業 <input id="cfg-wstart" type="time" value="10:00"></label>
+      <label style="margin:0">終業 <input id="cfg-wend" type="time" value="19:00"></label>
       <label style="margin:0">休憩（分） <input id="cfg-wbreak" type="number" min="0" step="15" value="60"></label>
     </div>
     <h3>通知</h3>
@@ -538,6 +539,7 @@ const KEY = "shiden_tasks_v1", DEL_KEY = "shiden_tasks_deleted_v1", CFG_KEY = "s
 
 /* ---- バージョンと更新履歴（公開版が反映されているかの確認用。変更のたびに先頭へ追記する） ---- */
 const CHANGELOG = [
+  ["2026-09-30.102", "既定の就業時間を 10:00〜19:00・休憩60分に。期限が先のタスクは終業までに収まるときだけ配置し、収まらなければ「今日は入らない」に分ける"],
   ["2026-09-30.101", "今日の時間配分: 期限が近い順に並べ、▲▼で手動並べ替え、✕で今日から外す（期限が今日以前なら次の営業日に延期）"],
   ["2026-09-30.100", "「⏱ 今日の時間配分」をサイドバーの項目（独立ページ）に変更。スマホも切替メニューから開ける"],
   ["2026-09-30.99", "左に「⏱ 今日の時間配分」タイムライン（対象は期限が今日以前 or 重要度3以上を自動選定、AIで所要時間を一括見積もり、始業・終業・休憩・除外から使える時間を計算、開始時刻付きで積み上げ）"],
@@ -750,7 +752,7 @@ function saveTodayOrder(list) { const td = todayStr(); list.forEach((t, i) => { 
 function nextBusinessDay() { const d = new Date(); do { d.setDate(d.getDate() + 1); } while (d.getDay() === 0 || d.getDay() === 6); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
 function renderToday() {
   if (!document.getElementById("today-tl")) return; // 今日ページを開いているときだけ描画
-  const c = getCfg(); const wstart = hm(c.wstart || "09:00"), wend = hm(c.wend || "18:00"), wbreak = c.wbreak == null ? 60 : c.wbreak;
+  const c = getCfg(); const wstart = hm(c.wstart || "10:00"), wend = hm(c.wend || "19:00"), wbreak = c.wbreak == null ? 60 : c.wbreak;
   const excl = todayExcl(); document.getElementById("today-excl").value = excl || "";
   const budget = Math.max(0, wend - wstart - wbreak - excl);
   const items = db.tasks.filter(t => !isArchived(t) && isTodayTask(t));
@@ -758,13 +760,18 @@ function renderToday() {
   const nowMin = (() => { const d = new Date(); return d.getHours() * 60 + d.getMinutes(); })();
   // 開始は「今」（就業時間内なら。5分単位に切り上げ）、就業前なら始業時刻
   let cur = nowMin > wstart && nowMin < wend ? Math.ceil(nowMin / 5) * 5 : wstart;
-  const total = open.reduce((a, t) => a + (t.est || DEFAULT_EST), 0);
+  // 期限が今日以前のタスクは必ず入れる（終業超過でも赤で表示）。期限が先のタスクは終業までに収まるときだけ入れ、収まらなければ「今日は入らない」へ
+  const tdNow = todayStr();
+  const placed = [], spill = []; let curP = cur;
+  open.forEach(t => { const est = t.est || DEFAULT_EST; const must = !!t.due && t.due <= tdNow; if (must || curP + est <= wend) { placed.push(t); curP += est; } else spill.push(t); });
+  const total = placed.reduce((a, t) => a + (t.est || DEFAULT_EST), 0);
   const sum = document.getElementById("today-sum");
   sum.classList.toggle("over", total > budget);
-  sum.innerHTML = `<span class="n">合計 ${fmtMin(total)}</span> / 使える時間 <span class="n">${fmtMin(budget)}</span>${total > budget ? ` <b style="color:var(--bad)">（${fmtMin(total - budget)} 超過）</b>` : ` <span style="color:var(--muted)">（残り ${fmtMin(budget - total)}）</span>`}<div class="bar"><i style="width:${Math.min(100, budget ? total / budget * 100 : 100)}%"></i></div>`;
+  sum.innerHTML = `<span class="n">合計 ${fmtMin(total)}</span> / 使える時間 <span class="n">${fmtMin(budget)}</span>${nowMin > wstart && nowMin < wend ? `<span style="color:var(--muted)">（今から終業まで ${fmtMin(wend - cur)}）</span>` : ""}${total > budget ? ` <b style="color:var(--bad)">（${fmtMin(total - budget)} 超過）</b>` : ` <span style="color:var(--muted)">（残り ${fmtMin(budget - total)}）</span>`}<div class="bar"><i style="width:${Math.min(100, budget ? total / budget * 100 : 100)}%"></i></div>`;
   const td = todayStr();
-  let html = open.map((t, i) => { const est = t.est || DEFAULT_EST; const start = cur; cur += est; const over = start >= wend || cur > wend; const dueTxt = t.due ? `<span class="dd ${t.due < td ? "over" : (t.due === td ? "today" : "")}">📅 ${fmtDue(t.due)}</span>` : ""; return `<li class="${over ? "over" : ""} ${t.est ? "" : "noest"}" data-id="${t.id}" title="${esc(t.title)}"><span class="tm">${fmtHM(start)}</span><span class="nm">${esc(t.title)}${dueTxt}</span><span class="du">${fmtMin(est)}${t.est ? "" : "?"}</span><span class="ctl"><button data-mv="-1" title="上へ" ${i === 0 ? "disabled" : ""}>▲</button><button data-mv="1" title="下へ" ${i === open.length - 1 ? "disabled" : ""}>▼</button><button data-drop="1" title="今日から外す（期限が今日以前なら次の営業日に延期）">✕</button></span></li>`; }).join("");
-  html += `<li class="tend"><span class="tm">${fmtHM(Math.min(cur, 1439))}</span><span>${cur > wend ? "終業 " + fmtHM(wend) + " を超過" : "終了予定（終業 " + fmtHM(wend) + "）"}</span></li>`;
+  let html = placed.map((t, i) => { const est = t.est || DEFAULT_EST; const start = cur; cur += est; const over = start >= wend || cur > wend; const dueTxt = t.due ? `<span class="dd ${t.due < td ? "over" : (t.due === td ? "today" : "")}">📅 ${fmtDue(t.due)}</span>` : ""; return `<li class="${over ? "over" : ""} ${t.est ? "" : "noest"}" data-id="${t.id}" title="${esc(t.title)}"><span class="tm">${fmtHM(start)}</span><span class="nm">${esc(t.title)}${dueTxt}</span><span class="du">${fmtMin(est)}${t.est ? "" : "?"}</span><span class="ctl"><button data-mv="-1" title="上へ" ${i === 0 ? "disabled" : ""}>▲</button><button data-mv="1" title="下へ" ${i === open.length - 1 ? "disabled" : ""}>▼</button><button data-drop="1" title="今日から外す（期限が今日以前なら次の営業日に延期）">✕</button></span></li>`; }).join("");
+  const spillHtml = spill.length ? `<li class="tend"><span class="tm">⏸</span><span>今日は入らない（期限が先・終業までに収まらない） ${spill.length}件</span></li>` + spill.map(t => `<li class="spill" data-id="${t.id}" title="${esc(t.title)}"><span class="tm">—</span><span class="nm">${esc(t.title)}${t.due ? `<span class="dd">📅 ${fmtDue(t.due)}</span>` : ""}</span><span class="du">${fmtMin(t.est || DEFAULT_EST)}${t.est ? "" : "?"}</span><span class="ctl"><button data-drop="1" title="今日から外す">✕</button></span></li>`).join("") : "";
+  html += `<li class="tend"><span class="tm">${fmtHM(Math.min(cur, 1439))}</span><span>${cur > wend ? "終業 " + fmtHM(wend) + " を超過" : "終了予定（終業 " + fmtHM(wend) + "）"}</span></li>` + spillHtml;
   html += done.map(t => `<li class="done" data-id="${t.id}"><span class="tm">✓</span><span class="nm">${esc(t.title)}</span><span class="du">${fmtMin(t.est || DEFAULT_EST)}</span></li>`).join("");
   if (!open.length && !done.length) html = `<li class="tend"><span class="tm">—</span><span>今日の対象タスクはありません（期限が今日以前 or 重要度3以上、または詳細で「今日やる」）</span></li>`;
   document.getElementById("today-tl").innerHTML = html;
@@ -1512,7 +1519,7 @@ function fillCfg() {
   document.getElementById("cfg-token").value = c.token || "";
   document.getElementById("cfg-openai").value = c.openai || "";
   document.getElementById("cfg-model").value = c.model || "gpt-5-mini";
-  document.getElementById("cfg-wstart").value = c.wstart || "09:00"; document.getElementById("cfg-wend").value = c.wend || "18:00"; document.getElementById("cfg-wbreak").value = c.wbreak == null ? 60 : c.wbreak;
+  document.getElementById("cfg-wstart").value = c.wstart || "10:00"; document.getElementById("cfg-wend").value = c.wend || "19:00"; document.getElementById("cfg-wbreak").value = c.wbreak == null ? 60 : c.wbreak;
 }
 document.getElementById("gh-config").addEventListener("click", () => { fillCfg(); panel.classList.add("open"); });
 document.getElementById("cfg-close").addEventListener("click", () => panel.classList.remove("open"));
@@ -1522,7 +1529,7 @@ document.getElementById("cfg-save").addEventListener("click", () => {
     path: document.getElementById("cfg-path").value.trim() || "tasks.json", branch: document.getElementById("cfg-branch").value.trim() || "main",
     token: document.getElementById("cfg-token").value.trim(),
     openai: document.getElementById("cfg-openai").value.trim(), model: document.getElementById("cfg-model").value,
-    wstart: document.getElementById("cfg-wstart").value || "09:00", wend: document.getElementById("cfg-wend").value || "18:00", wbreak: Number(document.getElementById("cfg-wbreak").value) || 0,
+    wstart: document.getElementById("cfg-wstart").value || "10:00", wend: document.getElementById("cfg-wend").value || "19:00", wbreak: Number(document.getElementById("cfg-wbreak").value) || 0,
   });
   panel.classList.remove("open"); render(); sync();
 });
