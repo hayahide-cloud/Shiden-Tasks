@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Shiden Tasks</title>
+<meta name="description" content="AIが補助するタスク管理（Microsoft To Do風・GitHub同期）">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='115' fill='%237c3aed'/%3E%3Cpath d='M296 66 L158 296 L248 296 L212 446 L376 218 L276 218 L336 66 Z' fill='%23facc15'/%3E%3C/svg%3E">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="紫電Tasks">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#09060f">
+<style>
+  /* ================================================================
+     Shiden Tasks — AI補助タスク管理（Microsoft To Do 風・GitHub同期）
+     秘密情報は一切含まない。実データは Private の Hayahide-Log に保存。
+     GitHubトークン・Claude APIキーは各端末のブラウザ内(localStorage)のみ。
+     テーマ・ヘッダー・同期の作りは Shiden LifeLogger / Expense と統一。
+     ================================================================ */
+  :root {
+    --page: #09060f; --surface: #14101d; --surface-2: #1d1729; --surface-3: #261e35;
+    --ink: #ece5fa; --ink-2: #c4b7dc; --muted: #9b8db8;
+    --grid: #2a2140; --border: rgba(168,120,255,0.16);
+    --accent: #a06bff; --accent-hi: #c084fc; --accent-deep: #7c3aed;
+    --accent-soft: rgba(124,58,237,0.10); --good: #34d399; --bad: #f87171; --warn: #fbbf24;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { color-scheme: dark; }
+  body {
+    background: radial-gradient(920px 500px at 82% -12%, rgba(124,58,237,0.20), transparent 60%), var(--page);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic UI", sans-serif;
+    line-height: 1.55; min-height: 100vh; -webkit-text-size-adjust: 100%;
+    padding: max(14px, env(safe-area-inset-top)) 12px 32px;
+  }
+  .wrap { max-width: 1120px; margin: 0 auto; }
+  header { margin-bottom: 14px; text-align: center; }
+  h1 { font-size: 25px; font-weight: 800; color: #fff; letter-spacing: 0.01em; }
+  h1 .logo-badge { width: 30px; height: 30px; vertical-align: -0.17em; margin-right: 9px; }
+  h1 .brand-grad { background: linear-gradient(90deg, #a78bfa, #7c3aed); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+  .sub { color: var(--muted); font-size: 11.5px; margin-top: 4px; }
+  .header-underline { width: 46px; height: 2px; margin: 10px auto 0; border-radius: 2px; background: linear-gradient(90deg, var(--accent-deep), var(--accent-hi)); }
+
+  /* ---- 同期・設定バー ---- */
+  .topbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+  .gh-status { font-size: 12px; color: var(--muted); }
+  .linkbtns { display: inline-flex; gap: 8px; flex-wrap: wrap; }
+  .linkbtn { display: inline-flex; align-items: center; gap: 6px; font-family: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; color: var(--ink-2); background: var(--surface-2); border: 1px solid var(--border); border-radius: 999px; padding: 7px 12px; }
+  .linkbtn:hover { color: var(--accent-hi); border-color: rgba(168,120,255,0.45); background: rgba(124,58,237,0.14); }
+  .linkbtn.danger { color: var(--muted); background: transparent; }
+  .btn { font-family: inherit; font-size: 13.5px; font-weight: 700; cursor: pointer; color: #fff; border: none; border-radius: 999px; padding: 9px 16px; background: linear-gradient(90deg, var(--accent-deep), var(--accent)); }
+  .btn.ghost { background: var(--surface-2); color: var(--ink-2); border: 1px solid var(--border); }
+  .btn:disabled { opacity: .5; cursor: default; }
+  .card { background: linear-gradient(180deg, rgba(124,58,237,0.06), rgba(124,58,237,0) 46%), var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 16px; margin-bottom: 12px; }
+  .cfg { display: none; }
+  .cfg.open { display: block; }
+  .cfg label { font-size: 12px; color: var(--ink-2); display: block; margin: 8px 0 8px; }
+  .cfg-grid { display: grid; gap: 8px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+  .cfg input, .cfg select { width: 100%; font-family: inherit; font-size: 15px; background: var(--surface-2); color: var(--ink); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; }
+  .cfg input:focus, .cfg select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(160,107,255,0.2); }
+  .cfg-actions { display: flex; align-items: center; gap: 12px; margin-top: 12px; flex-wrap: wrap; }
+  .hint { font-size: 11.5px; color: var(--muted); margin-top: 6px; }
+
+  /* ---- 3カラム（サイドバー／タスク一覧／詳細） MS To Do 風 ---- */
+  .app { display: grid; grid-template-columns: 220px 1fr; gap: 12px; align-items: start; }
+  .app.has-detail { grid-template-columns: 220px 1fr 360px; }
+  @media (max-width: 900px) { .app, .app.has-detail { grid-template-columns: 1fr; } .side { display: none; } .side.open { display: block; } }
+  .side { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 10px; position: sticky; top: 10px; }
+  .nav { list-style: none; }
+  .nav li { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 10px; cursor: pointer; color: var(--ink-2); font-size: 14px; }
+  .nav li:hover { background: var(--surface-2); }
+  .nav li.active { background: rgba(124,58,237,0.16); color: #fff; }
+  .nav li .ico { width: 18px; text-align: center; flex: none; }
+  .nav li .cnt { margin-left: auto; font-size: 11.5px; color: var(--muted); }
+  .nav .sep { height: 1px; background: var(--grid); margin: 8px 6px; }
+  .newlist { display: flex; gap: 6px; padding: 6px; }
+  .newlist input { flex: 1; min-width: 0; font-family: inherit; font-size: 13px; background: var(--surface-2); color: var(--ink); border: 1px solid var(--border); border-radius: 8px; padding: 7px 9px; }
+
+  .main { min-width: 0; }
+  .listhead { display: flex; align-items: baseline; gap: 10px; padding: 6px 4px 12px; }
+  .listhead h2 { font-size: 24px; font-weight: 800; color: #fff; }
+  .listhead .date { color: var(--muted); font-size: 12.5px; }
+  .listhead .menu { margin-left: auto; }
+  .tasks { list-style: none; display: flex; flex-direction: column; gap: 6px; }
+  .task { display: flex; align-items: center; gap: 10px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; cursor: pointer; }
+  .task:hover { border-color: rgba(168,120,255,0.4); }
+  .task.sel { background: rgba(124,58,237,0.14); border-color: rgba(168,120,255,0.55); }
+  .task.done .title { text-decoration: line-through; color: var(--muted); }
+  .chk { width: 20px; height: 20px; border-radius: 50%; border: 2px solid var(--muted); flex: none; display: grid; place-items: center; font-size: 12px; color: #fff; }
+  .task.done .chk { background: var(--accent-deep); border-color: var(--accent-deep); }
+  .task .body { flex: 1; min-width: 0; }
+  .task .title { font-size: 14.5px; overflow-wrap: anywhere; }
+  .task .meta { display: flex; gap: 8px; flex-wrap: wrap; font-size: 11.5px; color: var(--muted); margin-top: 2px; }
+  .task .meta .over { color: var(--bad); }
+  .task .meta .ai { color: var(--accent-hi); }
+  .star { flex: none; font-size: 18px; color: var(--muted); background: none; border: none; cursor: pointer; }
+  .star.on { color: var(--warn); }
+  .add { display: flex; align-items: center; gap: 10px; background: var(--surface); border: 1px dashed rgba(168,120,255,0.35); border-radius: 12px; padding: 8px 12px; margin-top: 8px; }
+  .add input { flex: 1; min-width: 0; font-family: inherit; font-size: 15px; background: transparent; color: var(--ink); border: none; outline: none; padding: 6px 0; }
+  .add .plus { color: var(--accent-hi); font-size: 20px; }
+  .empty { color: var(--muted); font-size: 13px; padding: 24px 8px; text-align: center; }
+  .section-done { margin-top: 14px; font-size: 12px; color: var(--muted); padding: 0 4px 6px; }
+
+  /* ---- 詳細パネル ---- */
+  .detail { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 14px; position: sticky; top: 10px; max-height: calc(100vh - 24px); overflow: auto; }
+  @media (max-width: 900px) { .detail { position: fixed; inset: 0; z-index: 50; border-radius: 0; max-height: none; padding: max(14px, env(safe-area-inset-top)) 14px 32px; } }
+  .detail .row { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--grid); font-size: 13.5px; }
+  .detail .row:last-child { border-bottom: none; }
+  .detail .row .ico { width: 20px; text-align: center; color: var(--muted); }
+  .detail input[type=text], .detail input[type=date], .detail textarea { width: 100%; font-family: inherit; font-size: 14px; background: var(--surface-2); color: var(--ink); border: 1px solid var(--border); border-radius: 10px; padding: 9px 11px; }
+  .detail textarea { min-height: 80px; resize: vertical; }
+  .detail .title-in { font-size: 17px; font-weight: 700; }
+  .steps { list-style: none; display: flex; flex-direction: column; gap: 4px; margin: 6px 0; }
+  .steps li { display: flex; align-items: center; gap: 8px; font-size: 13.5px; }
+  .steps li.done span { text-decoration: line-through; color: var(--muted); }
+  .steps .chk { width: 16px; height: 16px; font-size: 10px; }
+  .steps .rm { margin-left: auto; background: none; border: none; color: var(--muted); cursor: pointer; }
+  .close { background: none; border: none; color: var(--muted); font-size: 22px; cursor: pointer; margin-left: auto; }
+  .detail .head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .toggle { margin-left: auto; font-size: 12px; color: var(--accent-hi); cursor: pointer; background: none; border: 1px solid var(--border); border-radius: 999px; padding: 4px 10px; }
+  .toggle.on { background: rgba(124,58,237,0.18); }
+  .danger-link { color: var(--bad); background: none; border: none; cursor: pointer; font-size: 12.5px; margin-top: 12px; }
+
+  /* ---- AI補助 ---- */
+  .ai { margin-top: 12px; border: 1px solid rgba(168,120,255,0.3); border-radius: 12px; padding: 12px; background: linear-gradient(180deg, rgba(124,58,237,0.10), rgba(124,58,237,0.02)); }
+  .ai h4 { font-size: 13px; color: var(--accent-hi); margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+  .ai .kind { font-size: 11px; color: var(--muted); font-weight: 400; }
+  .ai .q { margin: 8px 0; }
+  .ai .q label { display: block; font-size: 13px; color: var(--ink-2); margin-bottom: 4px; }
+  .ai .q input { width: 100%; font-family: inherit; font-size: 14px; background: var(--surface-2); color: var(--ink); border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px; }
+  .ai .draft { white-space: pre-wrap; font-size: 13.5px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; padding: 10px; margin-top: 8px; overflow-wrap: anywhere; }
+  .ai .draft b { color: var(--accent-hi); }
+  .ai .actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+  .ai .status { font-size: 12px; color: var(--muted); margin-top: 6px; }
+  .ai .status.err { color: var(--bad); }
+  .spin { display: inline-block; width: 12px; height: 12px; border: 2px solid var(--muted); border-top-color: var(--accent-hi); border-radius: 50%; animation: sp 1s linear infinite; vertical-align: -2px; margin-right: 6px; }
+  @keyframes sp { to { transform: rotate(360deg); } }
+  footer { color: var(--muted); font-size: 11px; text-align: center; margin-top: 14px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1><svg class="logo-badge" viewBox="0 0 512 512" aria-hidden="true">
+      <defs>
+        <linearGradient id="badge-bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#a855f7"/><stop offset="1" stop-color="#6d28d9"/></linearGradient>
+        <linearGradient id="badge-bolt" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fde047"/><stop offset="1" stop-color="#facc15"/></linearGradient>
+      </defs>
+      <rect width="512" height="512" rx="115" fill="url(#badge-bg)"/>
+      <path d="M296 66 L158 296 L248 296 L212 446 L376 218 L276 218 L336 66 Z" fill="url(#badge-bolt)"/>
+    </svg><span class="brand-grad">Shiden</span> Tasks</h1>
+    <p class="sub">AI補助タスク管理 / M.T.Works</p>
+    <div class="header-underline"></div>
+  </header>
+
+  <div class="topbar">
+    <span id="gh-status" class="gh-status"></span>
+    <span class="linkbtns">
+      <button class="linkbtn" id="side-toggle" type="button">☰ リスト</button>
+      <button class="linkbtn" id="gh-sync" type="button">🔄 同期</button>
+      <button class="linkbtn" id="gh-config" type="button">⚙️ 設定</button>
+    </span>
+  </div>
+
+  <!-- 設定（GitHub同期・Claude API） -->
+  <div class="card cfg" id="cfg-panel">
+    <label>■ GitHub 同期 — Private リポジトリにタスクを保存します（各端末で1回設定）。Fine-grained トークンは対象リポジトリのみ・Contents読み書きで発行してください。</label>
+    <div class="cfg-grid">
+      <input id="cfg-owner" placeholder="owner（例: hayahide-cloud）" autocapitalize="off" autocorrect="off">
+      <input id="cfg-repo" placeholder="repo（例: Hayahide-Log）" autocapitalize="off" autocorrect="off">
+      <input id="cfg-path" placeholder="path（例: tasks.json）" value="tasks.json" autocapitalize="off" autocorrect="off">
+      <input id="cfg-branch" placeholder="branch（例: main）" value="main" autocapitalize="off" autocorrect="off">
+      <input id="cfg-token" type="password" placeholder="Fine-grained token（github_pat_...）" autocapitalize="off" autocorrect="off">
+    </div>
+    <label>■ Claude API — AI補助（問い返し・下書き）に使います。キーはこの端末のブラウザ内にのみ保存されます。</label>
+    <div class="cfg-grid">
+      <input id="cfg-anthropic" type="password" placeholder="Anthropic API key（sk-ant-...）" autocapitalize="off" autocorrect="off">
+      <select id="cfg-model">
+        <option value="claude-opus-5">claude-opus-5（既定・高品質）</option>
+        <option value="claude-sonnet-5">claude-sonnet-5（速い・安い）</option>
+        <option value="claude-haiku-4-5">claude-haiku-4-5（最安）</option>
+      </select>
+    </div>
+    <div class="hint">仕事のメール内容を入力することは社外AIへの業務情報送信にあたります。会社の生成AI利用規程に従い、機密・個人情報は入れない運用にしてください。</div>
+    <div class="cfg-actions">
+      <button class="btn" id="cfg-save" type="button">保存して同期</button>
+      <button class="linkbtn danger" id="cfg-clear" type="button">この端末の設定を削除</button>
+    </div>
+  </div>
+
+  <div class="app" id="app">
+    <aside class="side" id="side">
+      <ul class="nav" id="nav"></ul>
+      <div class="newlist"><input id="newlist" placeholder="＋ 新しいリスト"><button class="linkbtn" id="newlist-add" type="button">追加</button></div>
+    </aside>
+    <section class="main">
+      <div class="listhead"><h2 id="list-title"></h2><span class="date" id="list-date"></span>
+        <span class="menu"><button class="linkbtn danger" id="list-delete" type="button" hidden>リスト削除</button></span></div>
+      <ul class="tasks" id="tasks"></ul>
+      <div class="add"><span class="plus">＋</span><input id="add-input" placeholder="タスクを追加（Enterで登録・AIが内容を確認します）"></div>
+    </section>
+    <aside class="detail" id="detail" hidden></aside>
+  </div>
+  <footer>Shiden Tasks — トークン・APIキー・データはこの公開ページには含まれません</footer>
+</div>
+
+<script>
+/* ================================================================
+   データ層（localStorage が主・GitHub は同期先）
+   tasks: [{id,title,done,important,myDay,due,listId,steps:[{id,title,done}],note,ai,ct,mt}]
+   lists: [{id,name,ct,mt}]   deleted: [id...]（墓標。端末間で削除を伝播）
+   ================================================================ */
+const KEY = "shiden_tasks_v1", DEL_KEY = "shiden_tasks_deleted_v1", CFG_KEY = "shiden_tasks_cfg";
+const SMART = { myday: "今日の予定", important: "重要", planned: "期限付き", all: "タスク" };
+
+function load() { try { return Object.assign({ tasks: [], lists: [] }, JSON.parse(localStorage.getItem(KEY)) || {}); } catch (e) { return { tasks: [], lists: [] }; } }
+function save(d) { localStorage.setItem(KEY, JSON.stringify(d)); }
+function deleted() { try { return JSON.parse(localStorage.getItem(DEL_KEY)) || []; } catch (e) { return []; } }
+function saveDeleted(a) { localStorage.setItem(DEL_KEY, JSON.stringify(a)); }
+function newId() { return (self.crypto && crypto.randomUUID) ? crypto.randomUUID() : "t" + Date.now() + Math.random().toString(36).slice(2); }
+function now() { return Date.now(); }
+function todayStr() { const d = new Date(); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
+function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
+
+let db = load();
+let view = "myday";           // 表示中のリスト（スマート or リストid）
+let selectedId = null;        // 詳細表示中のタスク
+
+function touch(t) { t.mt = now(); save(db); scheduleSync(); }
+function task(id) { return db.tasks.find(t => t.id === id); }
+
+function addTask(title, listId) {
+  const t = { id: newId(), title, done: false, important: view === "important", myDay: view === "myday", due: view === "planned" ? todayStr() : "", listId: listId || (SMART[view] ? "" : view), steps: [], note: "", ai: null, ct: now(), mt: now() };
+  db.tasks.push(t); save(db); scheduleSync();
+  return t;
+}
+function removeTask(id) {
+  db.tasks = db.tasks.filter(t => t.id !== id);
+  const d = deleted(); d.push(id); saveDeleted(d); save(db);
+  if (selectedId === id) selectedId = null;
+  scheduleSync(); render();
+}
+function addList(name) { const l = { id: newId(), name, ct: now(), mt: now() }; db.lists.push(l); save(db); scheduleSync(); return l; }
+function removeList(id) {
+  db.lists = db.lists.filter(l => l.id !== id);
+  db.tasks.forEach(t => { if (t.listId === id) { t.listId = ""; t.mt = now(); } });
+  const d = deleted(); d.push(id); saveDeleted(d); save(db); view = "all"; scheduleSync(); render();
+}
+
+/* ---- 表示対象の抽出 ---- */
+function visibleTasks() {
+  const td = todayStr();
+  return db.tasks.filter(t => {
+    if (view === "myday") return t.myDay || (t.due === td && !t.done);
+    if (view === "important") return t.important;
+    if (view === "planned") return !!t.due;
+    if (view === "all") return true;
+    return t.listId === view;
+  });
+}
+
+/* ================================================================
+   描画
+   ================================================================ */
+function render() { renderNav(); renderList(); renderDetail(); }
+
+function renderNav() {
+  const cnt = k => { const v = view; view = k; const n = visibleTasks().filter(t => !t.done).length; view = v; return n; };
+  const smart = [["myday", "☀️"], ["important", "⭐"], ["planned", "📅"], ["all", "🗂️"]];
+  let html = smart.map(([k, ico]) => `<li class="${view === k ? "active" : ""}" data-view="${k}"><span class="ico">${ico}</span>${SMART[k]}<span class="cnt">${cnt(k) || ""}</span></li>`).join("");
+  if (db.lists.length) html += `<div class="sep"></div>`;
+  html += db.lists.map(l => `<li class="${view === l.id ? "active" : ""}" data-view="${l.id}"><span class="ico">📋</span>${esc(l.name)}<span class="cnt">${cnt(l.id) || ""}</span></li>`).join("");
+  document.getElementById("nav").innerHTML = html;
+}
+
+function renderList() {
+  const list = db.lists.find(l => l.id === view);
+  document.getElementById("list-title").textContent = SMART[view] || (list ? list.name : "");
+  document.getElementById("list-date").textContent = view === "myday" ? new Date().toLocaleDateString("ja-JP", { month: "long", day: "numeric", weekday: "short" }) : "";
+  document.getElementById("list-delete").hidden = !list;
+  const ts = visibleTasks();
+  const open = ts.filter(t => !t.done).sort((a, b) => (b.important - a.important) || (a.due || "9").localeCompare(b.due || "9") || b.ct - a.ct);
+  const done = ts.filter(t => t.done).sort((a, b) => b.mt - a.mt);
+  const td = todayStr();
+  const row = t => {
+    const meta = [];
+    if (t.myDay && view !== "myday") meta.push("☀️ 今日の予定");
+    if (t.due) meta.push(`<span class="${!t.done && t.due < td ? "over" : ""}">📅 ${t.due === td ? "今日" : t.due}</span>`);
+    if (t.steps.length) meta.push(`${t.steps.filter(s => s.done).length}/${t.steps.length} ステップ`);
+    if (t.ai && t.ai.draft) meta.push(`<span class="ai">⚡ 下書きあり</span>`);
+    else if (t.ai && t.ai.questions && !t.ai.draft) meta.push(`<span class="ai">⚡ AIの質問に回答待ち</span>`);
+    return `<li class="task ${t.done ? "done" : ""} ${selectedId === t.id ? "sel" : ""}" data-id="${t.id}">
+      <span class="chk" data-act="toggle">${t.done ? "✓" : ""}</span>
+      <div class="body"><div class="title">${esc(t.title)}</div>${meta.length ? `<div class="meta">${meta.join("")}</div>` : ""}</div>
+      <button class="star ${t.important ? "on" : ""}" data-act="star" title="重要">${t.important ? "★" : "☆"}</button>
+    </li>`;
+  };
+  let html = open.map(row).join("");
+  if (!open.length) html += `<div class="empty">${view === "myday" ? "今日の予定はまだありません。下の欄から追加できます。" : "タスクはありません"}</div>`;
+  if (done.length) html += `<div class="section-done">完了 ${done.length}</div>` + done.map(row).join("");
+  document.getElementById("tasks").innerHTML = html;
+}
+
+function renderDetail() {
+  const el = document.getElementById("detail"), app = document.getElementById("app");
+  const t = selectedId && task(selectedId);
+  if (!t) { el.hidden = true; app.classList.remove("has-detail"); return; }
+  el.hidden = false; app.classList.add("has-detail");
+  el.innerHTML = `
+    <div class="head"><span class="chk ${t.done ? "" : ""}" data-act="toggle" style="${t.done ? "background:var(--accent-deep);border-color:var(--accent-deep)" : ""}">${t.done ? "✓" : ""}</span>
+      <input type="text" class="title-in" id="d-title" value="${esc(t.title)}">
+      <button class="close" id="d-close" title="閉じる">×</button></div>
+    <div class="row"><span class="ico">☑</span><div style="flex:1">
+      <ul class="steps" id="d-steps">${t.steps.map(s => `<li class="${s.done ? "done" : ""}" data-sid="${s.id}"><span class="chk" data-sact="toggle" style="${s.done ? "background:var(--accent-deep);border-color:var(--accent-deep)" : ""}">${s.done ? "✓" : ""}</span><span>${esc(s.title)}</span><button class="rm" data-sact="rm" title="削除">×</button></li>`).join("")}</ul>
+      <input type="text" id="d-step" placeholder="＋ ステップを追加"></div></div>
+    <div class="row"><span class="ico">☀️</span>今日の予定に追加<button class="toggle ${t.myDay ? "on" : ""}" id="d-myday">${t.myDay ? "追加済み" : "追加"}</button></div>
+    <div class="row"><span class="ico">⭐</span>重要<button class="toggle ${t.important ? "on" : ""}" id="d-imp">${t.important ? "重要" : "通常"}</button></div>
+    <div class="row"><span class="ico">📅</span><input type="date" id="d-due" value="${esc(t.due)}"></div>
+    <div class="row"><span class="ico">📋</span><select id="d-list" class="linkbtn" style="border-radius:10px"><option value="">タスク</option>${db.lists.map(l => `<option value="${l.id}" ${t.listId === l.id ? "selected" : ""}>${esc(l.name)}</option>`).join("")}</select></div>
+    <div class="row"><span class="ico">📝</span><textarea id="d-note" placeholder="メモ">${esc(t.note)}</textarea></div>
+    ${renderAi(t)}
+    <button class="danger-link" id="d-delete">このタスクを削除</button>`;
+  bindDetail(t);
+}
+
+/* ================================================================
+   AI補助（Claude API を端末から直接呼ぶ）
+   1) 意図判定＋不足情報の問い返し（質問リスト）
+   2) 回答を受けて下書き生成（メール／Teams／会議依頼／作業手順）
+   ================================================================ */
+const AI_KINDS = { email: "メール", teams: "Teams/チャット", meeting: "会議・日程調整", line: "LINE", work: "作業タスク", other: "その他" };
+
+function renderAi(t) {
+  const a = t.ai || {};
+  const cfg = getCfg();
+  let body = "";
+  if (!cfg.anthropic) {
+    body = `<div class="status">「⚙️ 設定」で Anthropic API キーを入れると、AIがこのタスクの内容を確認して下書きを作ります。</div>`;
+  } else if (!a.questions) {
+    body = `<div class="actions"><button class="btn" data-ai="ask">⚡ AIに相談する</button></div><div class="status" id="ai-status"></div>`;
+  } else {
+    body = `<div class="kind">種類: ${AI_KINDS[a.kind] || a.kind || "—"}</div>`;
+    body += a.questions.map((q, i) => `<div class="q"><label>${i + 1}. ${esc(q)}</label><input data-ans="${i}" value="${esc((a.answers || [])[i] || "")}" placeholder="回答（空欄でも可）"></div>`).join("");
+    body += `<div class="actions"><button class="btn" data-ai="draft">${a.draft ? "↻ 下書きを作り直す" : "✍️ 下書きを作る"}</button><button class="linkbtn" data-ai="reask">質問をやり直す</button></div>`;
+    if (a.draft) {
+      body += `<div class="draft" id="ai-draft">${a.draft.subject ? `<b>件名:</b> ${esc(a.draft.subject)}\n\n` : ""}${esc(a.draft.body || "")}${a.draft.notes ? `\n\n<b>補足:</b> ${esc(a.draft.notes)}` : ""}</div>`;
+      body += `<div class="actions"><button class="linkbtn" data-ai="copy">📋 本文をコピー</button>${a.draft.subject ? `<button class="linkbtn" data-ai="copysub">件名をコピー</button>` : ""}${a.kind === "email" ? `<button class="linkbtn" data-ai="mailto">✉️ メールを開く</button>` : ""}</div>`;
+    }
+    body += `<div class="status" id="ai-status"></div>`;
+  }
+  return `<div class="ai"><h4>⚡ AI補助</h4>${body}</div>`;
+}
+
+function extractJson(text) {
+  // モデルが前後に文を付けても、最初の { から最後の } までを JSON として取り出す
+  const s = text.indexOf("{"), e = text.lastIndexOf("}");
+  if (s < 0 || e < 0) throw new Error("JSONが見つかりません");
+  return JSON.parse(text.slice(s, e + 1));
+}
+
+async function callClaude(system, user, maxTokens) {
+  const cfg = getCfg();
+  if (!cfg.anthropic) throw new Error("APIキー未設定");
+  const r = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": cfg.anthropic,
+      "anthropic-version": "2023-06-01",
+      "anthropic-dangerous-direct-browser-access": "true", // ブラウザ直接呼び出し（CORS）を許可するヘッダー
+    },
+    body: JSON.stringify({
+      model: cfg.model || "claude-opus-5",
+      max_tokens: maxTokens || 2048,
+      system,
+      output_config: { effort: "medium" }, // 問い返し・下書きは中程度の推論で十分（コスト抑制）
+      messages: [{ role: "user", content: user }],
+    }),
+  });
+  if (!r.ok) { let m = "HTTP " + r.status; try { const j = await r.json(); m += " " + (j.error && j.error.message || ""); } catch (e) {} throw new Error(m); }
+  const j = await r.json();
+  if (j.stop_reason === "refusal") throw new Error("AIが回答を控えました（安全性のため）");
+  return (j.content || []).filter(b => b.type === "text").map(b => b.text).join("");
+}
+
+const SYS_ASK = `あなたは日本語のタスク管理アシスタントです。ユーザーの仕事環境は Outlook メール・Microsoft Teams・LINE です。
+与えられたタスクの種類を判定し、良い成果物（メール本文・Teamsメッセージ・会議依頼・作業手順など）を作るために不足している情報を、ユーザーに聞く質問として2〜4個挙げてください。
+- 質問は具体的で短く、選択肢がある場合は「（依頼／報告／お礼／催促）」のように括弧で例示する
+- 宛先・目的・期限・伝えたい要点・温度感（丁寧さ）など、本当に必要なものだけ
+- 出力は次のJSONのみ。前後に説明文を付けない
+{"kind":"email|teams|meeting|line|work|other","questions":["…","…"]}`;
+
+const SYS_DRAFT = `あなたは日本語のビジネス文書アシスタントです。ユーザーの仕事環境は Outlook メール・Microsoft Teams・LINE です。
+タスク・種類・質問と回答をもとに、そのまま使える下書きを作ってください。
+- メールなら件名と本文（宛名・挨拶・本題・結び）。Teams/LINE なら簡潔なメッセージ。会議なら日程調整の依頼文。作業なら手順リスト
+- 回答が空欄の項目は、一般的な前提で自然に補う（過度な推測はしない）
+- 出力は次のJSONのみ。前後に説明文を付けない
+{"subject":"件名（メール以外は空文字）","body":"本文","notes":"送る前に確認すべき点があれば一言（無ければ空文字）"}`;
+
+async function aiAsk(t) {
+  setAiStatus("<span class='spin'></span>AIがタスクを確認しています…");
+  try {
+    const out = await callClaude(SYS_ASK, `タスク: ${t.title}${t.note ? "\nメモ: " + t.note : ""}${t.due ? "\n期限: " + t.due : ""}`, 1024);
+    const j = extractJson(out);
+    t.ai = { kind: j.kind || "other", questions: Array.isArray(j.questions) ? j.questions.slice(0, 5) : [], answers: [], draft: null };
+    touch(t); render();
+  } catch (e) { setAiStatus("失敗: " + e.message, true); }
+}
+async function aiDraft(t) {
+  const a = t.ai;
+  a.answers = [...document.querySelectorAll("[data-ans]")].map(i => i.value.trim());
+  touch(t);
+  setAiStatus("<span class='spin'></span>下書きを作成中…");
+  try {
+    const qa = a.questions.map((q, i) => `Q${i + 1}: ${q}\nA${i + 1}: ${a.answers[i] || "（未回答）"}`).join("\n");
+    const out = await callClaude(SYS_DRAFT, `タスク: ${t.title}\n種類: ${AI_KINDS[a.kind] || a.kind}${t.note ? "\nメモ: " + t.note : ""}${t.due ? "\n期限: " + t.due : ""}\n\n${qa}`, 4096);
+    const j = extractJson(out);
+    a.draft = { subject: j.subject || "", body: j.body || out, notes: j.notes || "" };
+    touch(t); render();
+  } catch (e) { setAiStatus("失敗: " + e.message, true); }
+}
+function setAiStatus(html, err) { const s = document.getElementById("ai-status"); if (s) { s.innerHTML = html; s.classList.toggle("err", !!err); } }
+async function copyText(s, label) {
+  try { await navigator.clipboard.writeText(s); setAiStatus(label + "をコピーしました"); }
+  catch (e) { setAiStatus("コピーできませんでした。テキストを選択して手動でコピーしてください", true); }
+}
+
+/* ================================================================
+   イベント配線
+   ================================================================ */
+document.getElementById("nav").addEventListener("click", e => {
+  const li = e.target.closest("li[data-view]"); if (!li) return;
+  view = li.dataset.view; selectedId = null; render();
+  if (window.innerWidth <= 900) document.getElementById("side").classList.remove("open");
+});
+document.getElementById("side-toggle").addEventListener("click", () => document.getElementById("side").classList.toggle("open"));
+document.getElementById("newlist-add").addEventListener("click", () => { const i = document.getElementById("newlist"); const v = i.value.trim(); if (!v) return; const l = addList(v); i.value = ""; view = l.id; render(); });
+document.getElementById("newlist").addEventListener("keydown", e => { if (e.key === "Enter") document.getElementById("newlist-add").click(); });
+document.getElementById("list-delete").addEventListener("click", () => { const l = db.lists.find(x => x.id === view); if (l && confirm(`リスト「${l.name}」を削除します。中のタスクは「タスク」へ移動します。`)) removeList(l.id); });
+
+document.getElementById("tasks").addEventListener("click", e => {
+  const li = e.target.closest("li.task"); if (!li) return;
+  const t = task(li.dataset.id); if (!t) return;
+  const act = e.target.closest("[data-act]") && e.target.closest("[data-act]").dataset.act;
+  if (act === "toggle") { t.done = !t.done; touch(t); render(); return; }
+  if (act === "star") { t.important = !t.important; touch(t); render(); return; }
+  selectedId = t.id; render();
+});
+document.getElementById("add-input").addEventListener("keydown", e => {
+  if (e.key !== "Enter") return;
+  const v = e.target.value.trim(); if (!v) return;
+  const t = addTask(v); e.target.value = ""; selectedId = t.id; render();
+  if (getCfg().anthropic) aiAsk(t); // APIキーがあれば登録直後にAIが内容を確認しに来る
+});
+
+function bindDetail(t) {
+  const el = document.getElementById("detail");
+  el.querySelector("#d-close").addEventListener("click", () => { selectedId = null; render(); });
+  el.querySelector("#d-title").addEventListener("change", e => { t.title = e.target.value.trim() || t.title; touch(t); render(); });
+  el.querySelector("[data-act=toggle]").addEventListener("click", () => { t.done = !t.done; touch(t); render(); });
+  el.querySelector("#d-myday").addEventListener("click", () => { t.myDay = !t.myDay; touch(t); render(); });
+  el.querySelector("#d-imp").addEventListener("click", () => { t.important = !t.important; touch(t); render(); });
+  el.querySelector("#d-due").addEventListener("change", e => { t.due = e.target.value; touch(t); render(); });
+  el.querySelector("#d-list").addEventListener("change", e => { t.listId = e.target.value; touch(t); render(); });
+  el.querySelector("#d-note").addEventListener("change", e => { t.note = e.target.value; touch(t); });
+  el.querySelector("#d-step").addEventListener("keydown", e => { if (e.key !== "Enter") return; const v = e.target.value.trim(); if (!v) return; t.steps.push({ id: newId(), title: v, done: false }); touch(t); render(); setTimeout(() => document.getElementById("d-step").focus(), 0); });
+  el.querySelector("#d-steps").addEventListener("click", e => {
+    const li = e.target.closest("li[data-sid]"); if (!li) return;
+    const s = t.steps.find(x => x.id === li.dataset.sid); const act = e.target.closest("[data-sact]") && e.target.closest("[data-sact]").dataset.sact;
+    if (act === "toggle") s.done = !s.done; else if (act === "rm") t.steps = t.steps.filter(x => x !== s); else return;
+    touch(t); render();
+  });
+  el.querySelector("#d-delete").addEventListener("click", () => { if (confirm("このタスクを削除しますか？")) removeTask(t.id); });
+  el.querySelectorAll("[data-ai]").forEach(b => b.addEventListener("click", () => {
+    const a = b.dataset.ai;
+    if (a === "ask" || a === "reask") return aiAsk(t);
+    if (a === "draft") return aiDraft(t);
+    if (a === "copy") return copyText(t.ai.draft.body, "本文");
+    if (a === "copysub") return copyText(t.ai.draft.subject, "件名");
+    if (a === "mailto") { location.href = "mailto:?subject=" + encodeURIComponent(t.ai.draft.subject) + "&body=" + encodeURIComponent(t.ai.draft.body); }
+  }));
+}
+
+/* ================================================================
+   GitHub 同期（Shiden LifeLogger と同じ方式：id単位マージ＋墓標＋409再試行）
+   ================================================================ */
+const statusEl = document.getElementById("gh-status"), panel = document.getElementById("cfg-panel");
+function getCfg() { try { return JSON.parse(localStorage.getItem(CFG_KEY)) || {}; } catch (e) { return {}; } }
+function setCfg(c) { localStorage.setItem(CFG_KEY, JSON.stringify(c)); }
+function cfgOk(c) { return c && c.owner && c.repo && c.path && c.token; }
+function status(m) { statusEl.textContent = m; }
+function hhmm() { const d = new Date(); return String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0"); }
+const b64enc = s => btoa(unescape(encodeURIComponent(s)));
+const b64dec = s => decodeURIComponent(escape(atob((s || "").replace(/\n/g, ""))));
+
+async function ghGet(c) {
+  // 古いshaが返るとPUTが409になるため、キャッシュ無効＋時刻パラメータで常に最新を取る（ヘッダー追加はCORSで弾かれるので使わない）
+  const url = `https://api.github.com/repos/${c.owner}/${c.repo}/contents/${c.path}?ref=${c.branch || "main"}&t=${Date.now()}`;
+  const r = await fetch(url, { cache: "no-store", headers: { Authorization: "Bearer " + c.token, Accept: "application/vnd.github+json" } });
+  if (r.status === 404) return { data: null, sha: null };
+  if (!r.ok) throw new Error("GET " + r.status);
+  const j = await r.json();
+  return { data: JSON.parse(b64dec(j.content)), sha: j.sha };
+}
+async function ghPut(c, obj, sha) {
+  const url = `https://api.github.com/repos/${c.owner}/${c.repo}/contents/${c.path}`;
+  const body = { message: "tasks " + new Date().toISOString(), content: b64enc(JSON.stringify(obj)), branch: c.branch || "main" };
+  if (sha) body.sha = sha;
+  const r = await fetch(url, { method: "PUT", headers: { Authorization: "Bearer " + c.token, Accept: "application/vnd.github+json", "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  if (!r.ok) throw new Error("PUT " + r.status);
+  return (await r.json()).content.sha;
+}
+function mergeById(a, b, del) {
+  // 同じidは mt（更新時刻）が新しい方を採用。墓標にあるものは除外
+  const m = new Map();
+  [...(a || []), ...(b || [])].forEach(x => { if (!x.id || del.has(x.id)) return; const p = m.get(x.id); if (!p || (x.mt || 0) >= (p.mt || 0)) m.set(x.id, x); });
+  return [...m.values()];
+}
+function merge(local, remote) {
+  remote = remote || {};
+  const del = new Set([...(local.deleted || []), ...(remote.deleted || [])]);
+  return { tasks: mergeById(local.tasks, remote.tasks, del), lists: mergeById(local.lists, remote.lists, del), deleted: [...del] };
+}
+async function syncOnce(c) {
+  const remote = await ghGet(c);
+  const merged = merge({ tasks: db.tasks, lists: db.lists, deleted: deleted() }, remote.data);
+  db = { tasks: merged.tasks, lists: merged.lists }; save(db); saveDeleted(merged.deleted);
+  await ghPut(c, merged, remote.sha);
+}
+let syncing = false, syncTimer = null;
+async function sync() {
+  const c = getCfg();
+  if (!cfgOk(c)) { status("未同期（ローカルのみ）"); return; }
+  if (syncing) return;
+  syncing = true; status("同期中…");
+  try {
+    let done = false, lastErr;
+    for (let i = 0; i < 5 && !done; i++) { try { await syncOnce(c); done = true; } catch (e) { lastErr = e; if (!/\b409\b/.test(e.message)) throw e; } }
+    if (!done) throw lastErr;
+    render(); status("同期完了 " + hhmm());
+  } catch (e) { status("同期失敗: " + e.message); } finally { syncing = false; }
+}
+function scheduleSync() { if (!cfgOk(getCfg())) return; clearTimeout(syncTimer); syncTimer = setTimeout(sync, 2500); }
+
+function fillCfg() {
+  const c = getCfg();
+  document.getElementById("cfg-owner").value = c.owner || "";
+  document.getElementById("cfg-repo").value = c.repo || "";
+  document.getElementById("cfg-path").value = c.path || "tasks.json";
+  document.getElementById("cfg-branch").value = c.branch || "main";
+  document.getElementById("cfg-token").value = c.token || "";
+  document.getElementById("cfg-anthropic").value = c.anthropic || "";
+  document.getElementById("cfg-model").value = c.model || "claude-opus-5";
+}
+document.getElementById("gh-config").addEventListener("click", () => { fillCfg(); panel.classList.toggle("open"); });
+document.getElementById("cfg-save").addEventListener("click", () => {
+  setCfg({
+    owner: document.getElementById("cfg-owner").value.trim(), repo: document.getElementById("cfg-repo").value.trim(),
+    path: document.getElementById("cfg-path").value.trim() || "tasks.json", branch: document.getElementById("cfg-branch").value.trim() || "main",
+    token: document.getElementById("cfg-token").value.trim(),
+    anthropic: document.getElementById("cfg-anthropic").value.trim(), model: document.getElementById("cfg-model").value,
+  });
+  panel.classList.remove("open"); render(); sync();
+});
+document.getElementById("cfg-clear").addEventListener("click", () => { localStorage.removeItem(CFG_KEY); fillCfg(); render(); status("設定を削除しました"); });
+document.getElementById("gh-sync").addEventListener("click", sync);
+
+render();
+if (cfgOk(getCfg())) { status("設定済み"); sync(); } else { status("未同期（ローカルのみ）。⚙️ 設定から同期とAIを有効化"); }
+</script>
+</body>
+</html>
