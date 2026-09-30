@@ -433,10 +433,10 @@
         <span class="tools">
           <span class="menu-wrap"><button class="tool" id="add-due" type="button" title="期限"><span id="add-due-lbl">📅</span></button>
             <div class="popover up" id="due-pop" hidden>
+              <button type="button" data-due="none">期限なし</button>
               <button type="button" data-due="today">今日</button>
               <button type="button" data-due="tomorrow">明日</button>
               <button type="button" data-due="monday">週明け月曜</button>
-              <button type="button" data-due="none">期限なし</button>
               <div style="height:1px;background:var(--grid);margin:4px 0"></div>
               <button type="button" data-due="pick">📅 カレンダーで選ぶ…</button>
               <input type="date" id="add-due-in" tabindex="-1" style="position:absolute;opacity:0;width:1px;height:1px;left:0;bottom:0;pointer-events:none">
@@ -464,6 +464,7 @@ const KEY = "shiden_tasks_v1", DEL_KEY = "shiden_tasks_deleted_v1", CFG_KEY = "s
 
 /* ---- バージョンと更新履歴（公開版が反映されているかの確認用。変更のたびに先頭へ追記する） ---- */
 const CHANGELOG = [
+  ["2026-09-30.82", "期限メニューで「期限なし」を先頭に（追加バー・詳細とも）"],
   ["2026-09-30.81", "一覧のタスク名を大きく（PC 16px／スマホ 17px）"],
   ["2026-09-30.80", "完了タスクは翌日に「🗄 アーカイブ」へ自動移動（当日は完了欄に残る）"],
   ["2026-09-30.79", "サイドバーの格納は廃止（詳細ペインの格納のみ）"],
@@ -773,7 +774,7 @@ function renderDetail() {
       </div>
       <div class="dcard">
         <div class="drow ${t.due || t.noDue ? "on" : ""} ${isOverdue(t) ? "overdue" : ""}"><span class="ico">📅</span><input type="date" id="d-due" value="${esc(t.due)}" title="期限日">${t.due ? `<button class="clear" data-clear="due" title="期限を削除">×</button>` : ""}</div>
-        <div class="quick">${[["今日", todayStr()], ["明日", addDays(1)], ["週明け月曜", nextMonday()]].map(([l, v]) => `<button class="qb ${t.due === v ? "on" : ""}" data-quick="${v}">${l}</button>`).join("")}<button class="qb ${t.noDue ? "on" : ""}" id="d-nodue" title="期限を設けないタスク">期限なし</button></div>
+        <div class="quick"><button class="qb ${t.noDue ? "on" : ""}" id="d-nodue" title="期限を設けないタスク">期限なし</button>${[["今日", todayStr()], ["明日", addDays(1)], ["週明け月曜", nextMonday()]].map(([l, v]) => `<button class="qb ${t.due === v ? "on" : ""}" data-quick="${v}">${l}</button>`).join("")}</div>
         <div class="drow ${t.remind ? "on" : ""}"><span class="ico">⏰</span><input type="datetime-local" id="d-remind" value="${esc(t.remind)}" title="通知（アプリを開いているときに知らせます）">${t.remind ? `<button class="clear" data-clear="remind" title="通知を削除">×</button>` : ""}</div>
       </div>
       <div class="dcard dnote"><textarea id="d-note" placeholder="メモの追加">${esc(t.note)}</textarea></div>
