@@ -14,193 +14,222 @@
 <meta name="theme-color" content="#09060f">
 <style>
   /* ================================================================
-     Shiden Tasks — AI補助タスク管理（Microsoft To Do 風・GitHub同期）
+     Shiden Tasks — AI補助タスク管理（Microsoft To Do 風レイアウト・GitHub同期）
      秘密情報は一切含まない。実データは Private の Hayahide-Log に保存。
      GitHubトークン・OpenAI APIキーは各端末のブラウザ内(localStorage)のみ。
-     テーマ・ヘッダー・同期の作りは Shiden LifeLogger / Expense と統一。
+     画面構成は MS To Do に倣う: 左サイドバー（スマートリスト＋自作リスト）／中央タスク一覧
+     （フラットな行・下部に追加バー・完了の折りたたみ）／右詳細ペイン（下部バーに作成日・削除）。
+     配色は Shiden 共通テーマ（ダーク×紫）。
      ================================================================ */
   :root {
-    --page: #09060f; --surface: #14101d; --surface-2: #1d1729; --surface-3: #261e35;
+    --page: #09060f; --surface: #14101d; --surface-2: #1d1729; --surface-3: #261e35; --row: #171222; --row-hover: #1f1830;
     --ink: #ece5fa; --ink-2: #c4b7dc; --muted: #9b8db8;
     --grid: #2a2140; --border: rgba(168,120,255,0.16);
     --accent: #a06bff; --accent-hi: #c084fc; --accent-deep: #7c3aed;
-    --accent-soft: rgba(124,58,237,0.10); --good: #34d399; --bad: #f87171; --warn: #fbbf24;
+    --good: #34d399; --bad: #f87171; --warn: #fbbf24;
+    --side-w: 250px; --detail-w: 360px; --appbar-h: 48px;
   }
   * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-  html { color-scheme: dark; }
-  body {
-    background: radial-gradient(920px 500px at 82% -12%, rgba(124,58,237,0.20), transparent 60%), var(--page);
-    color: var(--ink);
-    font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic UI", sans-serif;
-    line-height: 1.55; min-height: 100vh; -webkit-text-size-adjust: 100%;
-    padding: max(14px, env(safe-area-inset-top)) 12px 32px;
-  }
-  .wrap { max-width: 1120px; margin: 0 auto; }
-  header { margin-bottom: 14px; text-align: center; }
-  h1 { font-size: 25px; font-weight: 800; color: #fff; letter-spacing: 0.01em; }
-  h1 .logo-badge { width: 30px; height: 30px; vertical-align: -0.17em; margin-right: 9px; }
-  h1 .brand-grad { background: linear-gradient(90deg, #a78bfa, #7c3aed); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
-  .sub { color: var(--muted); font-size: 11.5px; margin-top: 4px; }
-  .header-underline { width: 46px; height: 2px; margin: 10px auto 0; border-radius: 2px; background: linear-gradient(90deg, var(--accent-deep), var(--accent-hi)); }
+  html { color-scheme: dark; height: 100%; }
+  body { height: 100%; background: var(--page); color: var(--ink); font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic UI", sans-serif; line-height: 1.5; -webkit-text-size-adjust: 100%; overflow: hidden; }
+  button, input, select, textarea { font-family: inherit; }
+  [hidden] { display: none !important; }
 
-  /* ---- 同期・設定バー ---- */
-  .topbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
-  .gh-status { font-size: 12px; color: var(--muted); }
-  .linkbtns { display: inline-flex; gap: 8px; flex-wrap: wrap; }
-  .linkbtn { display: inline-flex; align-items: center; gap: 6px; font-family: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; color: var(--ink-2); background: var(--surface-2); border: 1px solid var(--border); border-radius: 999px; padding: 7px 12px; }
-  [hidden] { display: none !important; } /* display指定のある要素でも hidden 属性を効かせる（リスト削除ボタン等） */
-  .linkbtn:hover { color: var(--accent-hi); border-color: rgba(168,120,255,0.45); background: rgba(124,58,237,0.14); }
-  .linkbtn.danger { color: var(--muted); background: transparent; }
-  .btn { font-family: inherit; font-size: 13.5px; font-weight: 700; cursor: pointer; color: #fff; border: none; border-radius: 999px; padding: 9px 16px; background: linear-gradient(90deg, var(--accent-deep), var(--accent)); }
-  .btn.ghost { background: var(--surface-2); color: var(--ink-2); border: 1px solid var(--border); }
-  .btn:disabled { opacity: .5; cursor: default; }
-  .card { background: linear-gradient(180deg, rgba(124,58,237,0.06), rgba(124,58,237,0) 46%), var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 16px; margin-bottom: 12px; }
-  .cfg { display: none; }
+  /* ---- アプリバー（MS To Do の最上部バー相当） ---- */
+  .shell { height: 100%; display: flex; flex-direction: column; }
+  .appbar { height: var(--appbar-h); flex: none; display: flex; align-items: center; gap: 10px; padding: 0 12px 0 14px; padding-top: env(safe-area-inset-top); background: var(--surface); border-bottom: 1px solid var(--grid); }
+  .brand { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 16px; color: #fff; white-space: nowrap; }
+  .brand svg { width: 24px; height: 24px; }
+  .brand .g { background: linear-gradient(90deg, #a78bfa, #7c3aed); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+  .gh-status { font-size: 12px; color: var(--muted); margin-left: 8px; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ibtn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 32px; min-width: 32px; padding: 0 10px; border-radius: 6px; border: none; background: transparent; color: var(--ink-2); font-size: 13px; cursor: pointer; }
+  .ibtn:hover { background: var(--surface-3); color: #fff; }
+
+  /* ---- 設定パネル（アプリバー直下に展開） ---- */
+  .cfg { display: none; flex: none; background: var(--surface); border-bottom: 1px solid var(--grid); padding: 14px 16px; max-height: 60vh; overflow: auto; }
   .cfg.open { display: block; }
-  .cfg label { font-size: 12px; color: var(--ink-2); display: block; margin: 8px 0 8px; }
+  .cfg label { font-size: 12px; color: var(--ink-2); display: block; margin: 8px 0; }
   .cfg-grid { display: grid; gap: 8px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
-  .cfg input, .cfg select { width: 100%; font-family: inherit; font-size: 15px; background: var(--surface-2); color: var(--ink); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; }
-  .cfg input:focus, .cfg select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(160,107,255,0.2); }
+  .cfg input, .cfg select { width: 100%; font-size: 14px; background: var(--surface-2); color: var(--ink); border: 1px solid var(--border); border-radius: 6px; padding: 9px 11px; }
+  .cfg input:focus, .cfg select:focus { outline: none; border-color: var(--accent); }
   .cfg-actions { display: flex; align-items: center; gap: 12px; margin-top: 12px; flex-wrap: wrap; }
   .hint { font-size: 11.5px; color: var(--muted); margin-top: 6px; }
+  .btn { font-size: 13.5px; font-weight: 600; cursor: pointer; color: #fff; border: none; border-radius: 6px; padding: 9px 16px; background: var(--accent-deep); }
+  .btn:hover { background: var(--accent); }
+  .linkbtn { font-size: 13px; cursor: pointer; color: var(--ink-2); background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; padding: 7px 12px; }
+  .linkbtn:hover { color: #fff; background: var(--surface-3); }
+  .linkbtn.danger { color: var(--muted); background: transparent; }
 
-  /* ---- 3カラム（サイドバー／タスク一覧／詳細） MS To Do 風 ---- */
-  .app { display: grid; grid-template-columns: 220px 1fr; gap: 12px; align-items: start; }
-  .app.has-detail { grid-template-columns: 220px 1fr 360px; }
-  @media (max-width: 900px) {
-    /* スマホ: サイドバーを横スクロールのチップ列にして常時表示（☰切替は不要） */
-    .app, .app.has-detail { grid-template-columns: 1fr; gap: 8px; }
-    .side { position: static; padding: 6px; border-radius: 12px; min-width: 0; } /* min-width:0 が無いとチップ列が親幅を押し広げ横スクロールが発生する */
-    .nav { display: flex; gap: 6px; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; padding: 2px; min-width: 0; }
-    .nav::-webkit-scrollbar { display: none; }
-    .nav li { flex: none; padding: 8px 12px; border-radius: 999px; background: var(--surface-2); font-size: 13.5px; gap: 6px; }
-    .nav li .cnt { margin-left: 2px; }
-    .nav .sep { width: 1px; height: auto; align-self: stretch; margin: 4px 2px; }
-    .newlist { display: none; }
-    .side.open .newlist { display: flex; }
-    .newlist input { font-size: 16px; }
-    #side-toggle .lbl-pc { display: none; }
-  }
-  @media (min-width: 901px) { #side-toggle { display: none; } }
-  .side { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 10px; position: sticky; top: 10px; }
-  .nav { list-style: none; }
-  .nav li { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 10px; cursor: pointer; color: var(--ink-2); font-size: 14px; }
+  /* ---- 3ペイン ---- */
+  .app { flex: 1; min-height: 0; display: grid; grid-template-columns: var(--side-w) 1fr 0; }
+  .app.has-detail { grid-template-columns: var(--side-w) 1fr var(--detail-w); }
+
+  /* サイドバー */
+  .side { background: var(--surface); border-right: 1px solid var(--grid); display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
+  .nav { list-style: none; flex: 1; overflow: auto; padding: 8px 6px; }
+  .nav li { display: flex; align-items: center; gap: 12px; padding: 9px 12px; border-radius: 4px; cursor: pointer; color: var(--ink); font-size: 14px; position: relative; }
   .nav li:hover { background: var(--surface-2); }
-  .nav li.active { background: rgba(124,58,237,0.16); color: #fff; }
-  .nav li .ico { width: 18px; text-align: center; flex: none; }
-  .nav li .cnt { margin-left: auto; font-size: 11.5px; color: var(--muted); }
-  .nav .sep { height: 1px; background: var(--grid); margin: 8px 6px; }
-  .newlist { display: flex; gap: 6px; padding: 6px; }
-  .newlist input { flex: 1; min-width: 0; font-family: inherit; font-size: 13px; background: var(--surface-2); color: var(--ink); border: 1px solid var(--border); border-radius: 8px; padding: 7px 9px; }
+  .nav li.active { background: var(--surface-3); }
+  .nav li.active::before { content: ""; position: absolute; left: 0; top: 10px; bottom: 10px; width: 3px; border-radius: 2px; background: var(--accent); }
+  .nav li .ico { width: 20px; text-align: center; flex: none; font-size: 15px; }
+  .nav li .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .nav li .cnt { font-size: 12px; color: var(--muted); }
+  .nav .sep { height: 1px; background: var(--grid); margin: 8px 8px; }
+  .newlist-wrap { flex: none; border-top: 1px solid var(--grid); padding: 6px; }
+  .newlist-btn { width: 100%; display: flex; align-items: center; gap: 12px; padding: 9px 12px; border: none; background: transparent; color: var(--accent-hi); font-size: 14px; cursor: pointer; border-radius: 4px; text-align: left; }
+  .newlist-btn:hover { background: var(--surface-2); }
+  .newlist { display: none; gap: 6px; padding: 4px 6px 6px; }
+  .side.open .newlist { display: flex; }
+  .side.open .newlist-btn { display: none; }
+  .newlist input { flex: 1; min-width: 0; font-size: 14px; background: var(--surface-2); color: var(--ink); border: 1px solid var(--accent); border-radius: 4px; padding: 7px 9px; outline: none; }
 
-  .main { min-width: 0; }
-  .listhead { display: flex; align-items: baseline; gap: 10px; padding: 6px 4px 12px; }
-  .listhead h2 { font-size: 24px; font-weight: 800; color: #fff; }
-  .listhead .date { color: var(--muted); font-size: 12.5px; }
-  .listhead .menu { margin-left: auto; }
-  .tasks { list-style: none; display: flex; flex-direction: column; gap: 6px; }
-  .task { display: flex; align-items: center; gap: 10px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; cursor: pointer; }
-  .task:hover { border-color: rgba(168,120,255,0.4); }
-  .task.sel { background: rgba(124,58,237,0.14); border-color: rgba(168,120,255,0.55); }
+  /* メイン（タスク一覧） */
+  .main { min-width: 0; display: flex; flex-direction: column; position: relative; }
+  .main.myday { background: radial-gradient(900px 320px at 20% -10%, rgba(124,58,237,0.28), transparent 60%), var(--page); }
+  .listhead { flex: none; display: flex; align-items: flex-start; gap: 10px; padding: 22px 28px 12px; }
+  .listhead .back { display: none; }
+  .listhead .tt { flex: 1; min-width: 0; }
+  .listhead h2 { font-size: 24px; font-weight: 600; color: #fff; display: flex; align-items: center; gap: 10px; line-height: 1.2; }
+  .listhead .date { color: var(--ink-2); font-size: 13px; margin-top: 4px; }
+  .menu-wrap { position: relative; }
+  .popover { position: absolute; right: 0; top: 36px; z-index: 20; background: var(--surface-2); border: 1px solid var(--grid); border-radius: 6px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); min-width: 170px; padding: 4px; }
+  .popover button { display: block; width: 100%; text-align: left; padding: 9px 12px; background: transparent; border: none; color: var(--ink); font-size: 13.5px; border-radius: 4px; cursor: pointer; }
+  .popover button:hover { background: var(--surface-3); }
+  .popover button.danger { color: var(--bad); }
+  .tasks-scroll { flex: 1; min-height: 0; overflow: auto; padding: 0 28px 92px; }
+  .tasks { list-style: none; display: flex; flex-direction: column; gap: 2px; }
+  .task { display: flex; align-items: center; gap: 14px; background: var(--row); border-radius: 4px; padding: 0 14px; min-height: 52px; cursor: pointer; border: 1px solid transparent; }
+  .task:hover { background: var(--row-hover); }
+  .task.sel { background: var(--surface-3); border-color: rgba(168,120,255,0.35); }
   .task.done .title { text-decoration: line-through; color: var(--muted); }
-  .chk { width: 20px; height: 20px; border-radius: 50%; border: 2px solid var(--muted); flex: none; display: grid; place-items: center; font-size: 12px; color: #fff; }
-  .task.done .chk { background: var(--accent-deep); border-color: var(--accent-deep); }
-  .task .body { flex: 1; min-width: 0; }
-  .task .title { font-size: 14.5px; overflow-wrap: anywhere; }
-  .task .meta { display: flex; gap: 8px; flex-wrap: wrap; font-size: 11.5px; color: var(--muted); margin-top: 2px; }
+  .chk { width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid var(--ink-2); flex: none; display: grid; place-items: center; font-size: 11px; color: #fff; cursor: pointer; }
+  .chk:hover { border-color: var(--accent-hi); }
+  .chk:hover::after { content: "✓"; color: var(--accent-hi); }
+  .task.done .chk, .chk.on { background: var(--accent-deep); border-color: var(--accent-deep); }
+  .task.done .chk:hover::after, .chk.on:hover::after { content: ""; }
+  .task .body { flex: 1; min-width: 0; padding: 8px 0; }
+  .task .title { font-size: 14px; overflow-wrap: anywhere; }
+  .task .meta { display: flex; gap: 6px; flex-wrap: wrap; font-size: 12px; color: var(--muted); margin-top: 1px; }
+  .task .meta span + span::before { content: "•"; margin-right: 6px; opacity: .6; }
   .task .meta .over { color: var(--bad); }
-  .task .meta .ai { color: var(--accent-hi); }
-  .star { flex: none; font-size: 18px; color: var(--muted); background: none; border: none; cursor: pointer; }
-  .star.on { color: var(--warn); }
-  .add { display: flex; align-items: center; gap: 10px; background: var(--surface); border: 1px dashed rgba(168,120,255,0.35); border-radius: 12px; padding: 8px 12px; margin-top: 8px; }
-  .add input { flex: 1; min-width: 0; font-family: inherit; font-size: 15px; background: transparent; color: var(--ink); border: none; outline: none; padding: 6px 0; }
-  .add .plus { color: var(--accent-hi); font-size: 20px; }
-  .add .go { flex: none; font-family: inherit; font-size: 13px; font-weight: 700; color: #fff; background: linear-gradient(90deg, var(--accent-deep), var(--accent)); border: none; border-radius: 999px; padding: 7px 14px; cursor: pointer; }
-  .empty { color: var(--muted); font-size: 13px; padding: 24px 8px; text-align: center; }
-  .section-done { margin-top: 14px; font-size: 12px; color: var(--muted); padding: 0 4px 6px; }
-  @media (max-width: 900px) {
-    /* スマホ: 追加欄を画面下に固定。タップ領域を広げ、入力は16pxでiOSの自動ズームを防ぐ */
-    body { padding-bottom: 96px; }
-    h1 { font-size: 22px; } header { margin-bottom: 8px; } .header-underline { margin-top: 6px; }
-    .topbar { margin-bottom: 8px; } .linkbtn { padding: 8px 11px; }
-    .listhead { padding: 4px 2px 8px; } .listhead h2 { font-size: 21px; }
-    .task { padding: 12px; } .chk { width: 24px; height: 24px; } .task .title { font-size: 15.5px; } .star { font-size: 22px; padding: 4px; }
-    .add { position: fixed; left: 10px; right: 10px; bottom: max(10px, env(safe-area-inset-bottom)); z-index: 40; margin: 0; background: var(--surface-2); border-style: solid; box-shadow: 0 8px 30px rgba(0,0,0,0.5); }
-    .add input { font-size: 16px; }
-    .cfg input, .cfg select { font-size: 16px; }
-  }
+  .task .meta .today { color: var(--accent-hi); }
+  .task .meta .aim { color: var(--accent-hi); }
+  .star { flex: none; font-size: 17px; color: var(--muted); background: none; border: none; cursor: pointer; padding: 6px; border-radius: 4px; }
+  .star:hover { color: var(--accent-hi); }
+  .star.on { color: var(--accent-hi); }
+  .empty { color: var(--muted); font-size: 13.5px; padding: 60px 8px; text-align: center; }
+  .empty .big { font-size: 40px; margin-bottom: 10px; }
+  .done-head { display: flex; align-items: center; gap: 8px; margin: 14px 0 6px; font-size: 13px; color: var(--ink-2); cursor: pointer; user-select: none; padding: 6px 4px; border-radius: 4px; width: fit-content; }
+  .done-head:hover { background: var(--surface-2); }
+  .done-head .chev { display: inline-block; transition: transform .15s; font-size: 11px; }
+  .done-head.closed .chev { transform: rotate(-90deg); }
 
-  /* ---- 詳細パネル ---- */
-  .detail { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 14px; position: sticky; top: 10px; max-height: calc(100vh - 24px); overflow: auto; }
-  @media (max-width: 900px) {
-    /* スマホ: 詳細は全画面。ヘッダー（完了・タイトル・閉じる）を上に固定し、背面のスクロールを止める */
-    .detail { position: fixed; inset: 0; z-index: 50; border-radius: 0; max-height: none; padding: 0 14px 40px; }
-    .detail .head { position: sticky; top: 0; z-index: 1; background: var(--surface); padding: max(12px, env(safe-area-inset-top)) 0 10px; margin: 0 0 6px; border-bottom: 1px solid var(--grid); }
-    .detail .close { font-size: 28px; padding: 0 4px; }
-    .detail input[type=text], .detail input[type=date], .detail textarea, .ai .q input { font-size: 16px; }
-    .detail .row { padding: 11px 0; }
-    body:has(.app.has-detail) { overflow: hidden; }
-  }
-  .detail .row { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--grid); font-size: 13.5px; }
-  .detail .row:last-child { border-bottom: none; }
-  .detail .row .ico { width: 20px; text-align: center; color: var(--muted); }
-  .detail input[type=text], .detail input[type=date], .detail textarea { width: 100%; font-family: inherit; font-size: 14px; background: var(--surface-2); color: var(--ink); border: 1px solid var(--border); border-radius: 10px; padding: 9px 11px; }
-  .detail textarea { min-height: 80px; resize: vertical; }
-  .detail .title-in { font-size: 17px; font-weight: 700; }
-  .steps { list-style: none; display: flex; flex-direction: column; gap: 4px; margin: 6px 0; }
-  .steps li { display: flex; align-items: center; gap: 8px; font-size: 13.5px; }
-  .steps li.done span { text-decoration: line-through; color: var(--muted); }
-  .steps .chk { width: 16px; height: 16px; font-size: 10px; }
-  .steps .rm { margin-left: auto; background: none; border: none; color: var(--muted); cursor: pointer; }
-  .close { background: none; border: none; color: var(--muted); font-size: 22px; cursor: pointer; margin-left: auto; }
-  .detail .head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
-  .toggle { margin-left: auto; font-size: 12px; color: var(--accent-hi); cursor: pointer; background: none; border: 1px solid var(--border); border-radius: 999px; padding: 4px 10px; }
-  .toggle.on { background: rgba(124,58,237,0.18); }
-  .danger-link { color: var(--bad); background: none; border: none; cursor: pointer; font-size: 12.5px; margin-top: 12px; }
+  /* 追加バー（メイン下部に固定。MS To Do の "＋ タスクの追加"） */
+  .add { position: absolute; left: 28px; right: 28px; bottom: 18px; display: flex; align-items: center; gap: 12px; background: var(--surface-2); border: 1px solid var(--grid); border-radius: 4px; padding: 0 14px; min-height: 52px; box-shadow: 0 10px 30px rgba(0,0,0,0.45); }
+  .add:focus-within { border-color: rgba(168,120,255,0.5); }
+  .add .plus { color: var(--accent-hi); font-size: 20px; width: 18px; text-align: center; }
+  .add input { flex: 1; min-width: 0; font-size: 14px; background: transparent; color: var(--ink); border: none; outline: none; padding: 10px 0; }
+  .add input::placeholder { color: var(--ink-2); }
+  .add .go { flex: none; font-size: 13px; font-weight: 600; color: #fff; background: var(--accent-deep); border: none; border-radius: 4px; padding: 7px 14px; cursor: pointer; }
+  .add .go:disabled { opacity: .35; cursor: default; }
 
-  /* ---- AI補助 ---- */
-  .ai { margin-top: 12px; border: 1px solid rgba(168,120,255,0.3); border-radius: 12px; padding: 12px; background: linear-gradient(180deg, rgba(124,58,237,0.10), rgba(124,58,237,0.02)); }
+  /* 詳細ペイン */
+  .detail { background: var(--surface); border-left: 1px solid var(--grid); display: flex; flex-direction: column; min-width: 0; }
+  .detail .scroll { flex: 1; min-height: 0; overflow: auto; padding: 14px 16px; }
+  .dcard { background: var(--surface-2); border-radius: 4px; margin-bottom: 8px; }
+  .dhead { display: flex; align-items: center; gap: 12px; padding: 10px 14px; }
+  .dhead .title-in { flex: 1; min-width: 0; font-size: 16px; font-weight: 600; background: transparent; border: none; color: #fff; outline: none; padding: 6px 0; }
+  .dhead .title-in:focus { border-bottom: 1px solid var(--accent); }
+  .steps { list-style: none; padding: 0 14px; }
+  .steps li { display: flex; align-items: center; gap: 12px; min-height: 40px; border-bottom: 1px solid var(--grid); }
+  .steps li:last-child { border-bottom: none; }
+  .steps li span.t { flex: 1; font-size: 13.5px; }
+  .steps li.done span.t { text-decoration: line-through; color: var(--muted); }
+  .steps .chk { width: 16px; height: 16px; font-size: 9px; }
+  .steps .rm { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 16px; padding: 4px; }
+  .steps .rm:hover { color: var(--bad); }
+  .stepadd { display: flex; align-items: center; gap: 12px; padding: 0 14px; min-height: 42px; }
+  .stepadd .plus { color: var(--accent-hi); font-size: 18px; width: 16px; text-align: center; }
+  .stepadd input { flex: 1; min-width: 0; font-size: 13.5px; background: transparent; border: none; color: var(--ink); outline: none; }
+  .stepadd input::placeholder { color: var(--accent-hi); }
+  .drow { display: flex; align-items: center; gap: 12px; padding: 0 14px; min-height: 46px; border-bottom: 1px solid var(--grid); font-size: 13.5px; color: var(--ink-2); cursor: pointer; }
+  .drow:last-child { border-bottom: none; }
+  .drow:hover { color: #fff; }
+  .drow .ico { width: 18px; text-align: center; color: var(--ink-2); flex: none; }
+  .drow .lbl { flex: 1; min-width: 0; }
+  .drow.on .lbl, .drow.on .ico { color: var(--accent-hi); }
+  .drow .clear { background: none; border: none; color: var(--muted); font-size: 16px; cursor: pointer; padding: 4px; }
+  .drow .clear:hover { color: var(--bad); }
+  .drow input[type=date] { flex: 1; font-size: 13.5px; background: transparent; color: var(--ink); border: none; outline: none; color-scheme: dark; }
+  .drow select { flex: 1; font-size: 13.5px; background: transparent; color: var(--ink); border: none; outline: none; }
+  .drow select option { background: var(--surface-2); }
+  .dnote { padding: 10px 14px; }
+  .dnote textarea { width: 100%; min-height: 96px; resize: vertical; font-size: 13.5px; background: transparent; color: var(--ink); border: none; outline: none; }
+  .dnote textarea::placeholder { color: var(--ink-2); }
+  .dfoot { flex: none; display: flex; align-items: center; justify-content: space-between; padding: 8px 10px; padding-bottom: max(8px, env(safe-area-inset-bottom)); border-top: 1px solid var(--grid); font-size: 12px; color: var(--muted); }
+  .dfoot .ibtn { font-size: 16px; }
+  .dfoot .ibtn.del:hover { color: var(--bad); }
+
+  /* ---- AI補助（詳細ペイン内） ---- */
+  .ai { margin-bottom: 8px; border: 1px solid rgba(168,120,255,0.3); border-radius: 4px; padding: 12px 14px; background: linear-gradient(180deg, rgba(124,58,237,0.12), rgba(124,58,237,0.03)); }
   .ai h4 { font-size: 13px; color: var(--accent-hi); margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
-  .ai .kind { font-size: 11px; color: var(--muted); font-weight: 400; }
+  .ai .kind { font-size: 11.5px; color: var(--muted); font-weight: 400; margin-left: auto; }
   .ai .q { margin: 8px 0; }
   .ai .q label { display: block; font-size: 13px; color: var(--ink-2); margin-bottom: 4px; }
-  .ai .q input { width: 100%; font-family: inherit; font-size: 14px; background: var(--surface-2); color: var(--ink); border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px; }
-  .ai .draft { white-space: pre-wrap; font-size: 13.5px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; padding: 10px; margin-top: 8px; overflow-wrap: anywhere; }
+  .ai .q input { width: 100%; font-size: 14px; background: var(--surface-2); color: var(--ink); border: 1px solid var(--border); border-radius: 4px; padding: 8px 10px; }
+  .ai .q input:focus { outline: none; border-color: var(--accent); }
+  .ai .draft { white-space: pre-wrap; font-size: 13.5px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 4px; padding: 10px; margin-top: 8px; overflow-wrap: anywhere; }
   .ai .draft b { color: var(--accent-hi); }
   .ai .actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
   .ai .status { font-size: 12px; color: var(--muted); margin-top: 6px; }
+  .ai .status:empty { display: none; }
   .ai .status.err { color: var(--bad); }
   .spin { display: inline-block; width: 12px; height: 12px; border: 2px solid var(--muted); border-top-color: var(--accent-hi); border-radius: 50%; animation: sp 1s linear infinite; vertical-align: -2px; margin-right: 6px; }
   @keyframes sp { to { transform: rotate(360deg); } }
-  footer { color: var(--muted); font-size: 11px; text-align: center; margin-top: 14px; }
+
+  /* ---- スマホ（MS To Do モバイル同様: リスト一覧画面 → リスト画面 → 詳細） ---- */
+  @media (max-width: 900px) {
+    .app, .app.has-detail { grid-template-columns: 1fr; }
+    .side { border-right: none; }
+    .main { display: none; }
+    body.m-list .side { display: none; }
+    body.m-list .main { display: flex; }
+    .nav li { padding: 12px 12px; font-size: 15px; }
+    .newlist input { font-size: 16px; }
+    .listhead { padding: 12px 14px 8px; align-items: center; }
+    .listhead .back { display: inline-flex; font-size: 22px; }
+    .listhead h2 { font-size: 21px; }
+    .tasks-scroll { padding: 0 12px 90px; }
+    .task { min-height: 56px; }
+    .task .title { font-size: 15px; }
+    .add { left: 10px; right: 10px; bottom: max(10px, env(safe-area-inset-bottom)); }
+    .add input { font-size: 16px; }
+    .cfg input, .cfg select { font-size: 16px; }
+    .detail { position: fixed; inset: 0; z-index: 50; border-left: none; padding-top: env(safe-area-inset-top); }
+    .dhead .title-in, .ai .q input, .stepadd input, .dnote textarea, .drow input[type=date], .drow select { font-size: 16px; }
+    .brand .txt { display: none; }
+  }
 </style>
 </head>
 <body>
-<div class="wrap">
-  <header>
-    <h1><svg class="logo-badge" viewBox="0 0 512 512" aria-hidden="true">
+<div class="shell">
+  <!-- アプリバー -->
+  <div class="appbar">
+    <span class="brand"><svg viewBox="0 0 512 512" aria-hidden="true">
       <defs>
         <linearGradient id="badge-bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#a855f7"/><stop offset="1" stop-color="#6d28d9"/></linearGradient>
         <linearGradient id="badge-bolt" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fde047"/><stop offset="1" stop-color="#facc15"/></linearGradient>
       </defs>
       <rect width="512" height="512" rx="115" fill="url(#badge-bg)"/>
       <path d="M296 66 L158 296 L248 296 L212 446 L376 218 L276 218 L336 66 Z" fill="url(#badge-bolt)"/>
-    </svg><span class="brand-grad">Shiden</span> Tasks</h1>
-    <p class="sub">AI補助タスク管理 / M.T.Works</p>
-    <div class="header-underline"></div>
-  </header>
-
-  <div class="topbar">
+    </svg><span class="txt"><span class="g">Shiden</span> Tasks</span></span>
     <span id="gh-status" class="gh-status"></span>
-    <span class="linkbtns">
-      <button class="linkbtn" id="side-toggle" type="button">＋ リスト作成</button>
-      <button class="linkbtn" id="gh-sync" type="button">🔄 同期</button>
-      <button class="linkbtn" id="gh-config" type="button">⚙️ 設定</button>
-    </span>
+    <button class="ibtn" id="gh-sync" type="button" title="同期">🔄<span class="txt-pc"> 同期</span></button>
+    <button class="ibtn" id="gh-config" type="button" title="設定">⚙️<span class="txt-pc"> 設定</span></button>
   </div>
 
   <!-- 設定（GitHub同期・OpenAI API） -->
-  <div class="card cfg" id="cfg-panel">
+  <div class="cfg" id="cfg-panel">
     <label>■ GitHub 同期 — Private リポジトリにタスクを保存します（各端末で1回設定）。Fine-grained トークンは対象リポジトリのみ・Contents読み書きで発行してください。</label>
     <div class="cfg-grid">
       <input id="cfg-owner" placeholder="owner（例: hayahide-cloud）" autocapitalize="off" autocorrect="off">
@@ -219,7 +248,7 @@
         <option value="gpt-4o-mini">gpt-4o-mini</option>
       </select>
     </div>
-    <div class="hint">仕事のメール内容を入力することは社外AIへの業務情報送信にあたります。会社の生成AI利用規程に従い、機密・個人情報は入れない運用にしてください。</div>
+    <div class="hint">仕事のメール内容を入力することは社外AIへの業務情報送信にあたります。会社の生成AI利用規程に従い、機密・個人情報は入れない運用にしてください。トークン・APIキー・データはこの公開ページには含まれません。</div>
     <div class="cfg-actions">
       <button class="btn" id="cfg-save" type="button">保存して同期</button>
       <button class="linkbtn danger" id="cfg-clear" type="button">この端末の設定を削除</button>
@@ -227,19 +256,33 @@
   </div>
 
   <div class="app" id="app">
+    <!-- サイドバー -->
     <aside class="side" id="side">
       <ul class="nav" id="nav"></ul>
-      <div class="newlist"><input id="newlist" placeholder="＋ 新しいリスト"><button class="linkbtn" id="newlist-add" type="button">追加</button></div>
+      <div class="newlist-wrap">
+        <button class="newlist-btn" id="side-toggle" type="button"><span>＋</span>新しいリスト</button>
+        <div class="newlist"><input id="newlist" placeholder="リスト名" enterkeyhint="done"><button class="linkbtn" id="newlist-add" type="button">作成</button></div>
+      </div>
     </aside>
-    <section class="main">
-      <div class="listhead"><h2 id="list-title"></h2><span class="date" id="list-date"></span>
-        <span class="menu"><button class="linkbtn danger" id="list-delete" type="button" hidden>リスト削除</button></span></div>
-      <ul class="tasks" id="tasks"></ul>
-      <div class="add"><span class="plus">＋</span><input id="add-input" placeholder="タスクを追加（AIが内容を確認します）" enterkeyhint="done"><button class="go" id="add-go" type="button">追加</button></div>
+
+    <!-- タスク一覧 -->
+    <section class="main" id="main">
+      <div class="listhead">
+        <button class="ibtn back" id="back" type="button" title="リスト一覧へ">‹</button>
+        <div class="tt"><h2 id="list-title"></h2><div class="date" id="list-date"></div></div>
+        <div class="menu-wrap"><button class="ibtn" id="list-menu" type="button" title="リストのオプション">…</button>
+          <div class="popover" id="list-pop" hidden>
+            <button id="list-rename" type="button">名前の変更</button>
+            <button id="list-delete" type="button" class="danger">リストの削除</button>
+          </div></div>
+      </div>
+      <div class="tasks-scroll" id="tasks-scroll"><ul class="tasks" id="tasks"></ul></div>
+      <div class="add"><span class="plus">＋</span><input id="add-input" placeholder="タスクの追加（AIが内容を確認します）" enterkeyhint="done"><button class="go" id="add-go" type="button">追加</button></div>
     </section>
+
+    <!-- 詳細ペイン -->
     <aside class="detail" id="detail" hidden></aside>
   </div>
-  <footer>Shiden Tasks — トークン・APIキー・データはこの公開ページには含まれません</footer>
 </div>
 
 <script>
@@ -249,7 +292,8 @@
    lists: [{id,name,ct,mt}]   deleted: [id...]（墓標。端末間で削除を伝播）
    ================================================================ */
 const KEY = "shiden_tasks_v1", DEL_KEY = "shiden_tasks_deleted_v1", CFG_KEY = "shiden_tasks_cfg";
-const SMART = { myday: "今日の予定", important: "重要", planned: "期限付き", all: "タスク" };
+const SMART = { myday: "今日の予定", important: "重要", planned: "今後の予定", all: "タスク" };
+const SMART_ICO = { myday: "☀️", important: "⭐", planned: "📅", all: "🏠" };
 
 function load() { try { return Object.assign({ tasks: [], lists: [] }, JSON.parse(localStorage.getItem(KEY)) || {}); } catch (e) { return { tasks: [], lists: [] }; } }
 function save(d) { localStorage.setItem(KEY, JSON.stringify(d)); }
@@ -259,10 +303,21 @@ function newId() { return (self.crypto && crypto.randomUUID) ? crypto.randomUUID
 function now() { return Date.now(); }
 function todayStr() { const d = new Date(); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
 function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
+function fmtDue(d) {
+  // 期限の表示: 今日／明日／M月D日(曜)。MS To Do と同じ感覚で相対表記にする
+  const td = todayStr(); if (d === td) return "今日";
+  const t = new Date(); t.setDate(t.getDate() + 1);
+  const tm = t.getFullYear() + "-" + String(t.getMonth() + 1).padStart(2, "0") + "-" + String(t.getDate()).padStart(2, "0");
+  if (d === tm) return "明日";
+  const [y, m, dd] = d.split("-").map(Number); const dt = new Date(y, m - 1, dd);
+  return dt.toLocaleDateString("ja-JP", { month: "numeric", day: "numeric", weekday: "short" });
+}
+const isMobile = () => window.innerWidth <= 900;
 
 let db = load();
 let view = "myday";           // 表示中のリスト（スマート or リストid）
 let selectedId = null;        // 詳細表示中のタスク
+let doneOpen = true;          // 「完了」セクションの開閉
 
 function touch(t) { t.mt = now(); save(db); scheduleSync(); }
 function task(id) { return db.tasks.find(t => t.id === id); }
@@ -300,42 +355,48 @@ function visibleTasks() {
 /* ================================================================
    描画
    ================================================================ */
-function render() { renderNav(); renderList(); renderDetail(); }
+function render() { renderNav(); renderList(); renderDetail(); document.body.classList.toggle("m-list", mobileScreen === "list"); }
+let mobileScreen = "home"; // スマホ: "home"=リスト一覧 / "list"=タスク一覧
 
 function renderNav() {
   const cnt = k => { const v = view; view = k; const n = visibleTasks().filter(t => !t.done).length; view = v; return n; };
-  const smart = [["myday", "☀️"], ["important", "⭐"], ["planned", "📅"], ["all", "🗂️"]];
-  let html = smart.map(([k, ico]) => `<li class="${view === k ? "active" : ""}" data-view="${k}"><span class="ico">${ico}</span>${SMART[k]}<span class="cnt">${cnt(k) || ""}</span></li>`).join("");
-  if (db.lists.length) html += `<div class="sep"></div>`;
-  html += db.lists.map(l => `<li class="${view === l.id ? "active" : ""}" data-view="${l.id}"><span class="ico">📋</span>${esc(l.name)}<span class="cnt">${cnt(l.id) || ""}</span></li>`).join("");
+  const item = (k, ico, name) => `<li class="${view === k ? "active" : ""}" data-view="${k}"><span class="ico">${ico}</span><span class="nm">${esc(name)}</span><span class="cnt">${cnt(k) || ""}</span></li>`;
+  let html = Object.keys(SMART).map(k => item(k, SMART_ICO[k], SMART[k])).join("");
+  html += `<div class="sep"></div>`;
+  html += db.lists.map(l => item(l.id, "☰", l.name)).join("");
   document.getElementById("nav").innerHTML = html;
 }
 
 function renderList() {
   const list = db.lists.find(l => l.id === view);
-  document.getElementById("list-title").textContent = SMART[view] || (list ? list.name : "");
-  document.getElementById("list-date").textContent = view === "myday" ? new Date().toLocaleDateString("ja-JP", { month: "long", day: "numeric", weekday: "short" }) : "";
-  document.getElementById("list-delete").hidden = !list;
+  document.getElementById("list-title").innerHTML = `<span>${list ? "☰" : SMART_ICO[view]}</span>${esc(SMART[view] || (list ? list.name : ""))}`;
+  document.getElementById("list-date").textContent = view === "myday" ? new Date().toLocaleDateString("ja-JP", { month: "long", day: "numeric", weekday: "long" }) : "";
+  document.getElementById("list-menu").hidden = !list;
+  document.getElementById("list-pop").hidden = true;
+  document.getElementById("main").classList.toggle("myday", view === "myday");
   const ts = visibleTasks();
   const open = ts.filter(t => !t.done).sort((a, b) => (b.important - a.important) || (a.due || "9").localeCompare(b.due || "9") || b.ct - a.ct);
   const done = ts.filter(t => t.done).sort((a, b) => b.mt - a.mt);
   const td = todayStr();
   const row = t => {
     const meta = [];
-    if (t.myDay && view !== "myday") meta.push("☀️ 今日の予定");
-    if (t.due) meta.push(`<span class="${!t.done && t.due < td ? "over" : ""}">📅 ${t.due === td ? "今日" : t.due}</span>`);
-    if (t.steps.length) meta.push(`${t.steps.filter(s => s.done).length}/${t.steps.length} ステップ`);
-    if (t.ai && t.ai.draft) meta.push(`<span class="ai">⚡ 下書きあり</span>`);
-    else if (t.ai && t.ai.questions && !t.ai.draft) meta.push(`<span class="ai">⚡ AIの質問に回答待ち</span>`);
+    const ln = t.listId ? (db.lists.find(l => l.id === t.listId) || {}).name : "タスク";
+    if (SMART[view] && ln) meta.push(`<span>${esc(ln)}</span>`);
+    if (t.myDay && view !== "myday") meta.push(`<span>☀️ 今日の予定</span>`);
+    if (t.due) meta.push(`<span class="${!t.done && t.due < td ? "over" : (t.due === td ? "today" : "")}">📅 ${fmtDue(t.due)}</span>`);
+    if (t.steps.length) meta.push(`<span>${t.steps.filter(s => s.done).length}/${t.steps.length}</span>`);
+    if (t.note) meta.push(`<span>📝</span>`);
+    if (t.ai && t.ai.draft) meta.push(`<span class="aim">⚡ 下書きあり</span>`);
+    else if (t.ai && t.ai.questions && !t.ai.draft) meta.push(`<span class="aim">⚡ 回答待ち</span>`);
     return `<li class="task ${t.done ? "done" : ""} ${selectedId === t.id ? "sel" : ""}" data-id="${t.id}">
-      <span class="chk" data-act="toggle">${t.done ? "✓" : ""}</span>
+      <span class="chk" data-act="toggle" title="${t.done ? "未完了に戻す" : "完了にする"}">${t.done ? "✓" : ""}</span>
       <div class="body"><div class="title">${esc(t.title)}</div>${meta.length ? `<div class="meta">${meta.join("")}</div>` : ""}</div>
-      <button class="star ${t.important ? "on" : ""}" data-act="star" title="重要">${t.important ? "★" : "☆"}</button>
+      <button class="star ${t.important ? "on" : ""}" data-act="star" title="${t.important ? "重要から外す" : "重要としてマーク"}">${t.important ? "★" : "☆"}</button>
     </li>`;
   };
   let html = open.map(row).join("");
-  if (!open.length) html += `<div class="empty">${view === "myday" ? "今日の予定はまだありません。下の欄から追加できます。" : "タスクはありません"}</div>`;
-  if (done.length) html += `<div class="section-done">完了 ${done.length}</div>` + done.map(row).join("");
+  if (!open.length && !done.length) html += `<div class="empty"><div class="big">${list ? "☰" : SMART_ICO[view]}</div>${view === "myday" ? "今日に集中しましょう。下の欄からタスクを追加できます。" : "タスクはありません"}</div>`;
+  if (done.length) html += `<div class="done-head ${doneOpen ? "" : "closed"}" id="done-head"><span class="chev">▾</span>完了 ${done.length}</div>` + (doneOpen ? done.map(row).join("") : "");
   document.getElementById("tasks").innerHTML = html;
 }
 
@@ -344,20 +405,31 @@ function renderDetail() {
   const t = selectedId && task(selectedId);
   if (!t) { el.hidden = true; app.classList.remove("has-detail"); return; }
   el.hidden = false; app.classList.add("has-detail");
+  const created = new Date(t.ct).toLocaleDateString("ja-JP", { year: "numeric", month: "short", day: "numeric" });
   el.innerHTML = `
-    <div class="head"><span class="chk ${t.done ? "" : ""}" data-act="toggle" style="${t.done ? "background:var(--accent-deep);border-color:var(--accent-deep)" : ""}">${t.done ? "✓" : ""}</span>
-      <input type="text" class="title-in" id="d-title" value="${esc(t.title)}">
-      <button class="close" id="d-close" title="閉じる">×</button></div>
-    <div class="row"><span class="ico">☑</span><div style="flex:1">
-      <ul class="steps" id="d-steps">${t.steps.map(s => `<li class="${s.done ? "done" : ""}" data-sid="${s.id}"><span class="chk" data-sact="toggle" style="${s.done ? "background:var(--accent-deep);border-color:var(--accent-deep)" : ""}">${s.done ? "✓" : ""}</span><span>${esc(s.title)}</span><button class="rm" data-sact="rm" title="削除">×</button></li>`).join("")}</ul>
-      <input type="text" id="d-step" placeholder="＋ ステップを追加"></div></div>
-    <div class="row"><span class="ico">☀️</span>今日の予定に追加<button class="toggle ${t.myDay ? "on" : ""}" id="d-myday">${t.myDay ? "追加済み" : "追加"}</button></div>
-    <div class="row"><span class="ico">⭐</span>重要<button class="toggle ${t.important ? "on" : ""}" id="d-imp">${t.important ? "重要" : "通常"}</button></div>
-    <div class="row"><span class="ico">📅</span><input type="date" id="d-due" value="${esc(t.due)}"></div>
-    <div class="row"><span class="ico">📋</span><select id="d-list" class="linkbtn" style="border-radius:10px"><option value="">タスク</option>${db.lists.map(l => `<option value="${l.id}" ${t.listId === l.id ? "selected" : ""}>${esc(l.name)}</option>`).join("")}</select></div>
-    <div class="row"><span class="ico">📝</span><textarea id="d-note" placeholder="メモ">${esc(t.note)}</textarea></div>
-    ${renderAi(t)}
-    <button class="danger-link" id="d-delete">このタスクを削除</button>`;
+    <div class="scroll">
+      <div class="dcard">
+        <div class="dhead"><span class="chk ${t.done ? "on" : ""}" data-act="toggle">${t.done ? "✓" : ""}</span>
+          <input type="text" class="title-in" id="d-title" value="${esc(t.title)}">
+          <button class="star ${t.important ? "on" : ""}" id="d-imp">${t.important ? "★" : "☆"}</button></div>
+        <ul class="steps" id="d-steps">${t.steps.map(s => `<li class="${s.done ? "done" : ""}" data-sid="${s.id}"><span class="chk ${s.done ? "on" : ""}" data-sact="toggle">${s.done ? "✓" : ""}</span><span class="t">${esc(s.title)}</span><button class="rm" data-sact="rm" title="ステップを削除">×</button></li>`).join("")}</ul>
+        <div class="stepadd"><span class="plus">＋</span><input type="text" id="d-step" placeholder="${t.steps.length ? "次のステップ" : "ステップの追加"}" enterkeyhint="done"></div>
+      </div>
+      <div class="dcard">
+        <div class="drow ${t.myDay ? "on" : ""}" id="d-myday"><span class="ico">☀️</span><span class="lbl">${t.myDay ? "今日の予定に追加済み" : "今日の予定に追加"}</span>${t.myDay ? `<button class="clear" data-clear="myday" title="今日の予定から削除">×</button>` : ""}</div>
+      </div>
+      <div class="dcard">
+        <div class="drow ${t.due ? "on" : ""}"><span class="ico">📅</span><input type="date" id="d-due" value="${esc(t.due)}" title="期限日">${t.due ? `<button class="clear" data-clear="due" title="期限を削除">×</button>` : ""}</div>
+        <div class="drow"><span class="ico">☰</span><select id="d-list" title="リスト"><option value="">タスク</option>${db.lists.map(l => `<option value="${l.id}" ${t.listId === l.id ? "selected" : ""}>${esc(l.name)}</option>`).join("")}</select></div>
+      </div>
+      <div class="dcard dnote"><textarea id="d-note" placeholder="メモの追加">${esc(t.note)}</textarea></div>
+      ${renderAi(t)}
+    </div>
+    <div class="dfoot">
+      <button class="ibtn" id="d-close" title="詳細を閉じる">›|</button>
+      <span>作成日: ${created}</span>
+      <button class="ibtn del" id="d-delete" title="タスクの削除">🗑</button>
+    </div>`;
   bindDetail(t);
 }
 
@@ -377,8 +449,7 @@ function renderAi(t) {
   } else if (!a.questions) {
     body = `<div class="actions"><button class="btn" data-ai="ask">⚡ AIに相談する</button></div><div class="status" id="ai-status"></div>`;
   } else {
-    body = `<div class="kind">種類: ${AI_KINDS[a.kind] || a.kind || "—"}</div>`;
-    body += a.questions.map((q, i) => `<div class="q"><label>${i + 1}. ${esc(q)}</label><input data-ans="${i}" value="${esc((a.answers || [])[i] || "")}" placeholder="回答（空欄でも可）"></div>`).join("");
+    body = a.questions.map((q, i) => `<div class="q"><label>${i + 1}. ${esc(q)}</label><input data-ans="${i}" value="${esc((a.answers || [])[i] || "")}" placeholder="回答（空欄でも可）"></div>`).join("");
     body += `<div class="actions"><button class="btn" data-ai="draft">${a.draft ? "↻ 下書きを作り直す" : "✍️ 下書きを作る"}</button><button class="linkbtn" data-ai="reask">質問をやり直す</button></div>`;
     if (a.draft) {
       body += `<div class="draft" id="ai-draft">${a.draft.subject ? `<b>件名:</b> ${esc(a.draft.subject)}\n\n` : ""}${esc(a.draft.body || "")}${a.draft.notes ? `\n\n<b>補足:</b> ${esc(a.draft.notes)}` : ""}</div>`;
@@ -386,7 +457,7 @@ function renderAi(t) {
     }
     body += `<div class="status" id="ai-status"></div>`;
   }
-  return `<div class="ai"><h4>⚡ AI補助</h4>${body}</div>`;
+  return `<div class="ai"><h4>⚡ AI補助${a.kind ? `<span class="kind">${AI_KINDS[a.kind] || a.kind}</span>` : ""}</h4>${body}</div>`;
 }
 
 function extractJson(text) {
@@ -466,26 +537,40 @@ async function copyText(s, label) {
    ================================================================ */
 document.getElementById("nav").addEventListener("click", e => {
   const li = e.target.closest("li[data-view]"); if (!li) return;
-  view = li.dataset.view; selectedId = null; render();
-  if (window.innerWidth <= 900) document.getElementById("side").classList.remove("open");
+  view = li.dataset.view; selectedId = null; mobileScreen = "list"; render();
+  document.getElementById("side").classList.remove("open");
 });
-document.getElementById("side-toggle").addEventListener("click", () => { const s = document.getElementById("side"); s.classList.toggle("open"); if (s.classList.contains("open")) document.getElementById("newlist").focus(); });
-document.getElementById("newlist-add").addEventListener("click", () => { const i = document.getElementById("newlist"); const v = i.value.trim(); if (!v) return; const l = addList(v); i.value = ""; view = l.id; render(); });
-document.getElementById("newlist").addEventListener("keydown", e => { if (e.key === "Enter") document.getElementById("newlist-add").click(); });
+document.getElementById("back").addEventListener("click", () => { mobileScreen = "home"; selectedId = null; render(); });
+document.getElementById("side-toggle").addEventListener("click", () => { document.getElementById("side").classList.add("open"); document.getElementById("newlist").focus(); });
+document.getElementById("newlist-add").addEventListener("click", () => {
+  const i = document.getElementById("newlist"); const v = i.value.trim();
+  document.getElementById("side").classList.remove("open");
+  if (!v) return;
+  const l = addList(v); i.value = ""; view = l.id; mobileScreen = "list"; render();
+});
+document.getElementById("newlist").addEventListener("keydown", e => { if (e.key === "Enter") document.getElementById("newlist-add").click(); if (e.key === "Escape") { e.target.value = ""; document.getElementById("side").classList.remove("open"); } });
+document.getElementById("newlist").addEventListener("blur", () => { setTimeout(() => { if (!document.getElementById("newlist").value.trim()) document.getElementById("side").classList.remove("open"); }, 150); });
+
+// リストの「…」メニュー（自作リストのみ: 名前変更／削除）
+document.getElementById("list-menu").addEventListener("click", e => { e.stopPropagation(); const p = document.getElementById("list-pop"); p.hidden = !p.hidden; });
+document.addEventListener("click", () => { document.getElementById("list-pop").hidden = true; });
+document.getElementById("list-rename").addEventListener("click", () => { const l = db.lists.find(x => x.id === view); if (!l) return; const v = prompt("リスト名", l.name); if (v && v.trim()) { l.name = v.trim(); l.mt = now(); save(db); scheduleSync(); render(); } });
 document.getElementById("list-delete").addEventListener("click", () => { const l = db.lists.find(x => x.id === view); if (l && confirm(`リスト「${l.name}」を削除します。中のタスクは「タスク」へ移動します。`)) removeList(l.id); });
 
 document.getElementById("tasks").addEventListener("click", e => {
+  if (e.target.closest("#done-head")) { doneOpen = !doneOpen; render(); return; }
   const li = e.target.closest("li.task"); if (!li) return;
   const t = task(li.dataset.id); if (!t) return;
   const act = e.target.closest("[data-act]") && e.target.closest("[data-act]").dataset.act;
   if (act === "toggle") { t.done = !t.done; touch(t); render(); return; }
   if (act === "star") { t.important = !t.important; touch(t); render(); return; }
-  selectedId = t.id; render();
+  selectedId = (selectedId === t.id && !isMobile()) ? null : t.id; render();
 });
 function submitAdd() {
   const input = document.getElementById("add-input");
   const v = input.value.trim(); if (!v) return;
   const t = addTask(v); input.value = ""; selectedId = t.id; render();
+  if (!isMobile()) input.focus(); // PCでは連続入力できるようフォーカスを戻す
   if (getCfg().openai) aiAsk(t); // APIキーがあれば登録直後にAIが内容を確認しに来る
 }
 document.getElementById("add-input").addEventListener("keydown", e => { if (e.key === "Enter") submitAdd(); });
@@ -495,12 +580,14 @@ function bindDetail(t) {
   const el = document.getElementById("detail");
   el.querySelector("#d-close").addEventListener("click", () => { selectedId = null; render(); });
   el.querySelector("#d-title").addEventListener("change", e => { t.title = e.target.value.trim() || t.title; touch(t); render(); });
-  el.querySelector("[data-act=toggle]").addEventListener("click", () => { t.done = !t.done; touch(t); render(); });
-  el.querySelector("#d-myday").addEventListener("click", () => { t.myDay = !t.myDay; touch(t); render(); });
+  el.querySelector("#d-title").addEventListener("keydown", e => { if (e.key === "Enter") e.target.blur(); });
+  el.querySelector(".dhead [data-act=toggle]").addEventListener("click", () => { t.done = !t.done; touch(t); render(); });
   el.querySelector("#d-imp").addEventListener("click", () => { t.important = !t.important; touch(t); render(); });
+  el.querySelector("#d-myday").addEventListener("click", e => { if (e.target.closest("[data-clear]")) { t.myDay = false; } else if (!t.myDay) t.myDay = true; else return; touch(t); render(); });
   el.querySelector("#d-due").addEventListener("change", e => { t.due = e.target.value; touch(t); render(); });
+  const dc = el.querySelector("[data-clear=due]"); if (dc) dc.addEventListener("click", () => { t.due = ""; touch(t); render(); });
   el.querySelector("#d-list").addEventListener("change", e => { t.listId = e.target.value; touch(t); render(); });
-  el.querySelector("#d-note").addEventListener("change", e => { t.note = e.target.value; touch(t); });
+  el.querySelector("#d-note").addEventListener("change", e => { t.note = e.target.value; touch(t); renderList(); });
   el.querySelector("#d-step").addEventListener("keydown", e => { if (e.key !== "Enter") return; const v = e.target.value.trim(); if (!v) return; t.steps.push({ id: newId(), title: v, done: false }); touch(t); render(); setTimeout(() => document.getElementById("d-step").focus(), 0); });
   el.querySelector("#d-steps").addEventListener("click", e => {
     const li = e.target.closest("li[data-sid]"); if (!li) return;
@@ -508,7 +595,7 @@ function bindDetail(t) {
     if (act === "toggle") s.done = !s.done; else if (act === "rm") t.steps = t.steps.filter(x => x !== s); else return;
     touch(t); render();
   });
-  el.querySelector("#d-delete").addEventListener("click", () => { if (confirm("このタスクを削除しますか？")) removeTask(t.id); });
+  el.querySelector("#d-delete").addEventListener("click", () => { if (confirm(`「${t.title}」を削除しますか？`)) removeTask(t.id); });
   el.querySelectorAll("[data-ai]").forEach(b => b.addEventListener("click", () => {
     const a = b.dataset.ai;
     if (a === "ask" || a === "reask") return aiAsk(t);
@@ -603,6 +690,8 @@ document.getElementById("cfg-save").addEventListener("click", () => {
 document.getElementById("cfg-clear").addEventListener("click", () => { localStorage.removeItem(CFG_KEY); fillCfg(); render(); status("設定を削除しました"); });
 document.getElementById("gh-sync").addEventListener("click", sync);
 
+// PCは「今日の予定」を開いた状態で起動。スマホはリスト一覧（ホーム）から
+mobileScreen = isMobile() ? "home" : "list";
 render();
 if (cfgOk(getCfg())) { status("設定済み"); sync(); } else { status("未同期（ローカルのみ）。⚙️ 設定から同期とAIを有効化"); }
 </script>
