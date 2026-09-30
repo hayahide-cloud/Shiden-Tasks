@@ -169,6 +169,15 @@
   .prio[data-v="1"] i:nth-child(-n+1), .prio[data-v="2"] i:nth-child(-n+2), .prio[data-v="3"] i:nth-child(-n+3) { background: var(--accent); }
   .prio[data-v="4"] i:nth-child(-n+4) { background: var(--warn); }
   .prio[data-v="5"] i:nth-child(-n+5) { background: var(--bad); }
+  .prio-wrap { flex: none; display: inline-flex; align-items: center; gap: 6px; }
+  .plabel { display: inline-flex; flex-direction: column; align-items: flex-end; line-height: 1.1; }
+  .plabel .pk { font-size: 10px; color: var(--muted); letter-spacing: .02em; }
+  .plabel b { font-size: 14px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+  .plabel.lg .pk { font-size: 11px; }
+  .plabel.lg b { font-size: 18px; color: #fff; }
+  .plabel .pw { font-size: 11px; color: var(--muted); }
+  .plabel .pw.hi { color: var(--warn); }
+  .task .prio-wrap { pointer-events: none; }
   .prio.lg { height: 34px; gap: 4px; padding: 4px 10px; }
   .prio.lg i { width: 8px; border-radius: 2px; }
   .prio.lg i:nth-child(1) { height: 9px; } .prio.lg i:nth-child(2) { height: 14px; } .prio.lg i:nth-child(3) { height: 19px; } .prio.lg i:nth-child(4) { height: 24px; } .prio.lg i:nth-child(5) { height: 29px; }
@@ -345,6 +354,7 @@
     .prio i:nth-child(1) { height: 10px; } .prio i:nth-child(2) { height: 16px; } .prio i:nth-child(3) { height: 22px; } .prio i:nth-child(4) { height: 27px; } .prio i:nth-child(5) { height: 32px; }
     .prio i::before { left: -3px; right: -3px; top: -20px; bottom: -8px; }
     .prio.lg { height: 44px; gap: 6px; padding: 4px 12px; } .prio.lg i { width: 11px; }
+    .plabel b { font-size: 15px; } .plabel.lg b { font-size: 20px; }
     .prio.lg i:nth-child(1) { height: 12px; } .prio.lg i:nth-child(2) { height: 19px; } .prio.lg i:nth-child(3) { height: 26px; } .prio.lg i:nth-child(4) { height: 33px; } .prio.lg i:nth-child(5) { height: 40px; }
     .nav li { -webkit-touch-callout: none; user-select: none; }
     /* ○のタップ判定を広げる: 見た目は22pxのまま、透明な当たり判定を上下左右14px分足す（約50px四方） */
@@ -487,6 +497,7 @@ const KEY = "shiden_tasks_v1", DEL_KEY = "shiden_tasks_deleted_v1", CFG_KEY = "s
 
 /* ---- バージョンと更新履歴（公開版が反映されているかの確認用。変更のたびに先頭へ追記する） ---- */
 const CHANGELOG = [
+  ["2026-09-30.97", "重要度バーに「重要度 3」のラベルを添える（詳細では「重要」「最重要」などの言葉も）"],
   ["2026-09-30.96", "表記を「優先度」から「重要度」に統一"],
   ["2026-09-30.95", "一覧の優先度バーは表示のみに（行タップで詳細を開いて変更）"],
   ["2026-09-30.94", "スマホ: タスク追加後に詳細を開く。優先度バーを大きく（一覧36px・詳細44px）"],
@@ -589,7 +600,14 @@ document.getElementById("ver").textContent = "v" + VERSION;
 document.getElementById("changelog").innerHTML = CHANGELOG.map(([v, m], i) => `<li class="${i === 0 ? "cur" : ""}"><span class="v">${v}</span><span>${m}</span></li>`).join("");
 const SMART = { all: "タスク", matrix: "アイゼンハワーマトリクス", archive: "アーカイブ" }; // マトリクス＝アイゼンハワー（重要=重要度3以上／緊急=期限が超過＋3営業日以内） // アーカイブ＝前日以前に完了したタスク（当日完了分は「タスク」の完了欄に残る）
 const SMART_ICO = { all: "🏠", matrix: "⊞", archive: "🗄" };
-function prioBars(v, lg) { return `<span class="prio ${lg ? "lg" : ""}" data-act="prio" data-v="${v || 0}" title="重要度 ${v || 0}/5（バーをクリックで設定）">${[1, 2, 3, 4, 5].map(p => `<i data-p="${p}"></i>`).join("")}</span>`; }
+const PRIO_WORD = ["未設定", "低", "やや低", "重要", "高", "最重要"];
+// 重要度バー＋ラベル。lg（詳細）は言葉も添える。一覧は「重要度 3」だけ
+function prioBars(v, lg) {
+  v = v || 0;
+  const bars = `<span class="prio ${lg ? "lg" : ""}" data-act="prio" data-v="${v}" title="重要度 ${v}/5${lg ? "（バーをタップで設定）" : ""}">${[1, 2, 3, 4, 5].map(p => `<i data-p="${p}"></i>`).join("")}</span>`;
+  const label = lg ? `<span class="plabel lg"><span class="pk">重要度</span><b>${v || "–"}</b><span class="pw ${v >= 3 ? "hi" : ""}">${PRIO_WORD[v]}</span></span>` : `<span class="plabel"><span class="pk">重要度</span><b>${v || "–"}</b></span>`;
+  return `<span class="prio-wrap ${lg ? "lg" : ""}">${label}${bars}</span>`;
+}
 const TAG_CH = ["Teams", "Outlook", "LINE", "電話", "Excel", "Word", "PP", "Web", "その他ツール"];  // どこの案件か／何で作るか（PP＝PowerPoint）
 const TAG_TY = ["確認", "対応", "返信", "新規文章作成", "成果物作成", "手配", "購入", "調査", "検討", "その他種別"];  // 表示順
 const TAG_EX = ["石油部会 執行部", "事務局長", "プライベート"];  // 第3グループ（桃色）。区分。プライベートだけ特別扱い（既定非表示・ツール/重要度不要・期限なし既定）  // どんな仕事か（対応＝アンケート回答・申請など、考えずにサッと片付ける軽い作業）
