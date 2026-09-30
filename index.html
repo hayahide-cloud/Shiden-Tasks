@@ -539,6 +539,7 @@ const KEY = "shiden_tasks_v1", DEL_KEY = "shiden_tasks_deleted_v1", CFG_KEY = "s
 
 /* ---- バージョンと更新履歴（公開版が反映されているかの確認用。変更のたびに先頭へ追記する） ---- */
 const CHANGELOG = [
+  ["2026-09-30.103", "AIで見積もり＆並べ替え: 所要時間と同時に、期限が今日以前を先頭に保ちつつ系統の似たタスクを隣接させた順序を適用"],
   ["2026-09-30.102", "既定の就業時間を 10:00〜19:00・休憩60分に。期限が先のタスクは終業までに収まるときだけ配置し、収まらなければ「今日は入らない」に分ける"],
   ["2026-09-30.101", "今日の時間配分: 期限が近い順に並べ、▲▼で手動並べ替え、✕で今日から外す（期限が今日以前なら次の営業日に延期）"],
   ["2026-09-30.100", "「⏱ 今日の時間配分」をサイドバーの項目（独立ページ）に変更。スマホも切替メニューから開ける"],
@@ -775,22 +776,33 @@ function renderToday() {
   html += done.map(t => `<li class="done" data-id="${t.id}"><span class="tm">✓</span><span class="nm">${esc(t.title)}</span><span class="du">${fmtMin(t.est || DEFAULT_EST)}</span></li>`).join("");
   if (!open.length && !done.length) html = `<li class="tend"><span class="tm">—</span><span>今日の対象タスクはありません（期限が今日以前 or 重要度3以上、または詳細で「今日やる」）</span></li>`;
   document.getElementById("today-tl").innerHTML = html;
-  document.getElementById("today-est").hidden = !getCfg().openai || !open.some(t => !t.est);
+  document.getElementById("today-est").hidden = !getCfg().openai || !open.length;
 }
 document.getElementById("tasks").addEventListener("change", e => { if (e.target.id === "today-excl") { localStorage.setItem(EXCL_KEY, JSON.stringify({ d: todayStr(), m: Number(e.target.value) || 0 })); renderToday(); } });
-const SYS_EST = `あなたはタスクの所要時間を見積もるアシスタントです。各タスクについて、集中して取り組んだ場合の現実的な所要時間を分単位（5分刻み、5〜240）で見積もってください。
-- タスク名・タグ（ツール／種別）・ステップ・メモを手がかりにする。返信や確認は短め、成果物作成や検討は長め
+const SYS_EST = `あなたはADHD特性のある人の「今日の段取り」を組むアシスタントです。与えられた今日のタスク一覧について、次の2つを行ってください。
+1) 所要時間の見積もり: est が未設定のタスクについて、集中して取り組んだ場合の現実的な所要時間を分単位（5分刻み、5〜240）で。返信や確認は短め、成果物作成や検討は長め
+2) 実行順の提案（order に全タスクの id を実行順で並べる）:
+- 「期限が今日以前」のタスク（must=true）は必ず先頭側にまとめる（超過→今日の順）。must=false はその後
+- その制約の中で、系統の似たタスクを隣接させてまとめる（同じツール・同じ種別。例: Outlook の返信同士、Teams の連絡同士、Excel 作業同士）。切り替えコストを減らすため
+- 似た系統のまとまりの中では短いものを先に
 - 出力は次のJSONのみ
-{"estimates":[{"id":"…","minutes":30}]}`;
+{"estimates":[{"id":"…","minutes":30}],"order":["id1","id2",…]}`;
 async function aiEstimateToday() {
-  const targets = db.tasks.filter(t => !isArchived(t) && isTodayTask(t) && !t.done && !t.est);
-  if (!targets.length) return;
-  const st = document.getElementById("today-status"); st.classList.remove("err"); st.innerHTML = "<span class='spin'></span>所要時間を見積もっています…";
+  const all = todayOrder(db.tasks.filter(t => !isArchived(t) && isTodayTask(t) && !t.done));
+  if (!all.length) return;
+  const td = todayStr();
+  const st = document.getElementById("today-status"); st.classList.remove("err"); st.innerHTML = "<span class='spin'></span>所要時間を見積もり、並び順を考えています…";
   try {
-    const user = targets.map(t => `id: ${t.id}\nタスク: ${t.title}${(t.tags || []).length ? "\nタグ: " + t.tags.join(", ") : ""}${t.steps.length ? "\nステップ: " + t.steps.map(x => x.title).join(" / ") : ""}${t.note ? "\nメモ: " + t.note : ""}`).join("\n\n");
-    const j = extractJson(await callAI(SYS_EST, user, 2048));
-    let n = 0; (j.estimates || []).forEach(e => { const t = targets.find(x => x.id === e.id); const m = Math.round(Number(e.minutes) / 5) * 5; if (t && m >= 5) { t.est = Math.min(240, m); t.mt = now(); n++; } });
-    save(db); scheduleSync(); render(); st.textContent = `${n}件を見積もりました（詳細で修正できます）`; setTimeout(() => { if (st.textContent.includes("見積もりました")) st.textContent = ""; }, 5000);
+    const user = all.map(t => `id: ${t.id}\nタスク: ${t.title}\nmust: ${!!t.due && t.due <= td}${t.due ? "\n期限: " + t.due : ""}${t.est ? "\nest: " + t.est : ""}${(t.tags || []).length ? "\nタグ: " + t.tags.join(", ") : ""}${t.steps.length ? "\nステップ: " + t.steps.map(x => x.title).join(" / ") : ""}${t.note ? "\nメモ: " + t.note : ""}`).join("\n\n");
+    const j = extractJson(await callAI(SYS_EST, user, 3000));
+    let n = 0; (j.estimates || []).forEach(e => { const t = all.find(x => x.id === e.id); const m = Math.round(Number(e.minutes) / 5) * 5; if (t && !t.est && m >= 5) { t.est = Math.min(240, m); t.mt = now(); n++; } });
+    // 並び順: AIの order を採用しつつ、期限が今日以前（must）が必ず先頭側に来るよう補正。order に無いものは末尾
+    let ordered = [];
+    if (Array.isArray(j.order)) { j.order.forEach(id => { const t = all.find(x => x.id === id); if (t && !ordered.includes(t)) ordered.push(t); }); all.forEach(t => { if (!ordered.includes(t)) ordered.push(t); }); }
+    else ordered = all;
+    const must = ordered.filter(t => t.due && t.due <= td), rest = ordered.filter(t => !(t.due && t.due <= td));
+    saveTodayOrder([...must, ...rest]);
+    render(); st.textContent = `${n}件を見積もり、系統ごとに並べ替えました（▲▼で調整できます）`; setTimeout(() => { if (st.textContent.includes("並べ替えました")) st.textContent = ""; }, 6000);
   } catch (e) { if (e.name !== "AbortError") { st.classList.add("err"); st.textContent = "失敗: " + e.message; } }
 }
 
@@ -918,7 +930,7 @@ function renderList() {
   if (view === "today") {
     tagFilter = null; document.getElementById("tagbar").hidden = true; document.getElementById("sort-btn").hidden = true;
     document.getElementById("tasks").innerHTML = `<section class="today" id="today">
-        <div class="th"><span class="tt">今日やるタスクを、現在時刻から順に積み上げています</span><button class="ibtn small" id="today-est" type="button" title="所要時間が未設定のタスクをAIで見積もる">🧩 AIで見積もる</button></div>
+        <div class="th"><span class="tt">今日やるタスクを、現在時刻から順に積み上げています</span><button class="ibtn small" id="today-est" type="button" title="所要時間をAIで見積もり、系統の似たタスクを隣に並べる">🧩 AIで見積もり＆並べ替え</button></div>
         <div class="tsum" id="today-sum"></div>
         <div class="texcl"><label>除外 <input type="number" id="today-excl" min="0" step="15" placeholder="0"> 分</label><span class="hint">会議など、今日だけ差し引く時間</span></div>
         <ol class="tl" id="today-tl"></ol>
