@@ -191,6 +191,11 @@
   .ai .draft { white-space: pre-wrap; font-size: 13.5px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 4px; padding: 10px; margin-top: 8px; overflow-wrap: anywhere; }
   .ai .draft b { color: var(--accent-hi); }
   .ai .actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+  .ai .links { list-style: none; margin-top: 8px; display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+  .ai .links a { color: var(--accent-hi); overflow-wrap: anywhere; }
+  .ai .links .ln { color: var(--muted); margin-left: 6px; font-size: 12px; }
+  .ai .stepsug { margin-top: 8px; font-size: 13px; color: var(--ink-2); }
+  .ai .stepsug ol { padding-left: 20px; margin-top: 4px; }
   .ai .status { font-size: 12px; color: var(--muted); margin-top: 6px; }
   .ai .status:empty { display: none; }
   .ai .status.err { color: var(--bad); }
@@ -357,6 +362,7 @@ const KEY = "shiden_tasks_v1", DEL_KEY = "shiden_tasks_deleted_v1", CFG_KEY = "s
 
 /* ---- バージョンと更新履歴（公開版が反映されているかの確認用。変更のたびに先頭へ追記する） ---- */
 const CHANGELOG = [
+  ["2026-09-30.25", "AI補助を拡張: 「手配・調べもの」種類を追加しWeb検索で候補を提示（リンク付き）。段取り案を「ステップに追加」できる。作業タスクも手順をステップ化"],
   ["2026-09-30.24", "AI補助に × を追加（質問・下書きを消して初期状態へ。問い合わせ中は中断）"],
   ["2026-09-30.23", "スマホ: 「追加」ボタンが ⏰ の入力欄に隠れて押せない不具合を修正"],
   ["2026-09-30.22", "リスト作成時にそのリストへ移動しない"],
@@ -542,7 +548,8 @@ function renderDetail() {
    1) 意図判定＋不足情報の問い返し（質問リスト）
    2) 回答を受けて下書き生成（メール／Teams／会議依頼／作業手順）
    ================================================================ */
-const AI_KINDS = { email: "メール", teams: "Teams/チャット", meeting: "会議・日程調整", line: "LINE", work: "作業タスク", other: "その他" };
+const AI_KINDS = { email: "メール", teams: "Teams/チャット", meeting: "会議・日程調整", line: "LINE", research: "手配・調べもの（Web検索）", work: "作業タスク", other: "その他" };
+const SEARCH_KINDS = new Set(["research"]); // 下書き時に Web 検索を使う種類
 
 function renderAi(t) {
   const a = t.ai || {};
@@ -556,8 +563,11 @@ function renderAi(t) {
     body = a.questions.map((q, i) => `<div class="q"><label>${i + 1}. ${esc(q)}</label><input data-ans="${i}" value="${esc((a.answers || [])[i] || "")}" placeholder="回答（空欄でも可）"></div>`).join("");
     body += `<div class="actions"><button class="btn" data-ai="draft">${a.draft ? "↻ 下書きを作り直す" : "✍️ 下書きを作る"}</button><button class="linkbtn" data-ai="reask">質問をやり直す</button></div>`;
     if (a.draft) {
-      body += `<div class="draft" id="ai-draft">${a.draft.subject ? `<b>件名:</b> ${esc(a.draft.subject)}\n\n` : ""}${esc(a.draft.body || "")}${a.draft.notes ? `\n\n<b>補足:</b> ${esc(a.draft.notes)}` : ""}</div>`;
-      body += `<div class="actions"><button class="linkbtn" data-ai="copy">📋 本文をコピー</button>${a.draft.subject ? `<button class="linkbtn" data-ai="copysub">件名をコピー</button>` : ""}${a.kind === "email" ? `<button class="linkbtn" data-ai="mailto">✉️ メールを開く</button>` : ""}</div>`;
+      const d = a.draft;
+      body += `<div class="draft" id="ai-draft">${d.subject ? `<b>件名:</b> ${esc(d.subject)}\n\n` : ""}${esc(d.body || "")}${d.notes ? `\n\n<b>補足:</b> ${esc(d.notes)}` : ""}</div>`;
+      if (d.links && d.links.length) body += `<ul class="links">${d.links.map(l => `<li><a href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.title || l.url)}</a>${l.note ? `<span class="ln">${esc(l.note)}</span>` : ""}</li>`).join("")}</ul>`;
+      if (d.steps && d.steps.length) body += `<div class="stepsug"><b>段取り案:</b><ol>${d.steps.map(x => `<li>${esc(x)}</li>`).join("")}</ol></div>`;
+      body += `<div class="actions"><button class="linkbtn" data-ai="copy">📋 本文をコピー</button>${d.subject ? `<button class="linkbtn" data-ai="copysub">件名をコピー</button>` : ""}${a.kind === "email" ? `<button class="linkbtn" data-ai="mailto">✉️ メールを開く</button>` : ""}${d.steps && d.steps.length ? `<button class="linkbtn" data-ai="addsteps">☑ ステップに追加</button>` : ""}</div>`;
     }
     body += `<div class="status" id="ai-status"></div>`;
   }
@@ -573,6 +583,30 @@ function extractJson(text) {
 }
 
 let aiAbort = null, aiBusy = null; // 進行中の問い合わせ（× で中断できるように保持）
+async function callAISearch(system, user, maxTokens) {
+  // Responses API ＋ web_search ツールで実際に検索させる。失敗したら通常の呼び出しにフォールバック
+  const cfg = getCfg();
+  if (!cfg.openai) throw new Error("APIキー未設定");
+  if (aiAbort) aiAbort.abort();
+  aiAbort = new AbortController();
+  const r = await fetch("https://api.openai.com/v1/responses", {
+    method: "POST", signal: aiAbort.signal,
+    headers: { "Content-Type": "application/json", Authorization: "Bearer " + cfg.openai },
+    body: JSON.stringify({
+      model: cfg.model || "gpt-5-mini",
+      tools: [{ type: "web_search" }],
+      max_output_tokens: maxTokens || 4096,
+      instructions: system,
+      input: user,
+    }),
+  });
+  if (!r.ok) { let m = "HTTP " + r.status; try { const j = await r.json(); m += " " + (j.error && j.error.message || ""); } catch (e) {} throw new Error(m); }
+  const j = await r.json();
+  if (j.status === "incomplete") throw new Error("応答が途中で切れました");
+  const texts = [];
+  (j.output || []).forEach(o => { if (o.type === "message") (o.content || []).forEach(c => { if (c.type === "output_text") texts.push(c.text); }); });
+  return texts.join("");
+}
 async function callAI(system, user, maxTokens) {
   // OpenAI Chat Completions をブラウザから直接呼ぶ。応答はJSONのみ（response_format）
   const cfg = getCfg();
@@ -603,14 +637,28 @@ const SYS_ASK = `あなたは日本語のタスク管理アシスタントです
 - 質問は具体的で短く、選択肢がある場合は「（依頼／報告／お礼／催促）」のように括弧で例示する
 - 宛先・目的・期限・伝えたい要点・温度感（丁寧さ）など、本当に必要なものだけ
 - 出力は次のJSONのみ。前後に説明文を付けない
-{"kind":"email|teams|meeting|line|work|other","questions":["…","…"]}`;
+種類の判定基準:
+- email / teams / line: 誰かに文章を送る
+- meeting: 会議や打ち合わせの日程調整
+- research: 予約・手配・購入・調べもの（例: ゴルフのセッティング、店の予約、旅行、備品の購入、比較検討）。この場合は同行者・希望日時・場所や地域・予算・条件を聞く
+- work: 自分で行う作業（資料作成、週報、確認作業など）。この場合は成果物・期限・材料を聞く
+{"kind":"email|teams|meeting|line|research|work|other","questions":["…","…"]}`;
 
 const SYS_DRAFT = `あなたは日本語のビジネス文書アシスタントです。ユーザーの仕事環境は Outlook メール・Microsoft Teams・LINE です。
 タスク・種類・質問と回答をもとに、そのまま使える下書きを作ってください。
 - メールなら件名と本文（宛名・挨拶・本題・結び）。Teams/LINE なら簡潔なメッセージ。会議なら日程調整の依頼文。作業なら手順リスト
 - 回答が空欄の項目は、一般的な前提で自然に補う（過度な推測はしない）
+- 作業タスク（work）は body に要点を書き、steps に実行順の手順（3〜8個・短文）を入れる
 - 出力は次のJSONのみ。前後に説明文を付けない
-{"subject":"件名（メール以外は空文字）","body":"本文","notes":"送る前に確認すべき点があれば一言（無ければ空文字）"}`;
+{"subject":"件名（メール以外は空文字）","body":"本文","notes":"送る前に確認すべき点があれば一言（無ければ空文字）","steps":["手順（workのみ。他は空配列）"]}`;
+
+const SYS_RESEARCH = `あなたは日本語の手配・調査アシスタントです。Web検索を使って、タスクと回答に合う候補を実際に調べてください。
+- 候補は3〜5件。名称・所在地や地域・料金や条件の目安・選んだ理由を簡潔に
+- 検索で確認できなかったことは推測で書かず「要確認」とする
+- body には候補の比較を箇条書きで。links には候補の公式サイトや予約ページのURLを入れる
+- steps には予約・連絡・準備の段取りを実行順に3〜8個（短文）
+- 出力は次のJSONのみ。前後に説明文を付けない
+{"subject":"","body":"候補の比較（箇条書き）","notes":"決める前に確認すべき点（無ければ空文字）","links":[{"title":"候補名","url":"https://…","note":"一言"}],"steps":["段取り"]}`;
 
 async function aiAsk(t) {
   aiBusy = t.id; renderDetail(); setAiStatus("<span class='spin'></span>AIがタスクを確認しています…");
@@ -628,9 +676,16 @@ async function aiDraft(t) {
   setAiStatus("<span class='spin'></span>下書きを作成中…");
   try {
     const qa = a.questions.map((q, i) => `Q${i + 1}: ${q}\nA${i + 1}: ${a.answers[i] || "（未回答）"}`).join("\n");
-    const out = await callAI(SYS_DRAFT, `タスク: ${t.title}\n種類: ${AI_KINDS[a.kind] || a.kind}${t.note ? "\nメモ: " + t.note : ""}${t.due ? "\n期限: " + t.due : ""}\n\n${qa}`, 4096);
+    const user = `タスク: ${t.title}\n種類: ${AI_KINDS[a.kind] || a.kind}${t.note ? "\nメモ: " + t.note : ""}${t.due ? "\n期限: " + t.due : ""}\n\n${qa}`;
+    let out, searched = false;
+    if (SEARCH_KINDS.has(a.kind)) {
+      setAiStatus("<span class='spin'></span>Webで候補を検索しています…");
+      try { out = await callAISearch(SYS_RESEARCH, user, 6000); searched = true; }
+      catch (e) { if (e.name === "AbortError") throw e; out = await callAI(SYS_DRAFT, user, 4096); } // 検索が使えない場合は通常生成
+    } else out = await callAI(SYS_DRAFT, user, 4096);
     const j = extractJson(out);
-    a.draft = { subject: j.subject || "", body: j.body || out, notes: j.notes || "" };
+    a.draft = { subject: j.subject || "", body: j.body || out, notes: (j.notes || "") + (SEARCH_KINDS.has(a.kind) && !searched ? "（Web検索が使えなかったため一般知識で作成。リンクや料金は要確認）" : ""),
+      links: Array.isArray(j.links) ? j.links.filter(l => l && l.url).slice(0, 8) : [], steps: Array.isArray(j.steps) ? j.steps.filter(Boolean).slice(0, 10) : [] };
     touch(t); render();
   } catch (e) { if (e.name === "AbortError") return; setAiStatus("失敗: " + e.message, true); }
 }
@@ -763,6 +818,7 @@ function bindDetail(t) {
   el.querySelector("#d-delete").addEventListener("click", () => { if (confirm(`「${t.title}」を削除しますか？`)) removeTask(t.id); });
   el.querySelectorAll("[data-ai]").forEach(b => b.addEventListener("click", () => {
     const a = b.dataset.ai;
+    if (a === "addsteps") { t.ai.draft.steps.forEach(x => t.steps.push({ id: newId(), title: x, done: false })); t.ai.draft.steps = []; touch(t); render(); return; }
     if (a === "dismiss") { if (aiAbort) aiAbort.abort(); aiBusy = null; t.ai = null; touch(t); render(); return; }
     if (a === "ask" || a === "reask") return aiAsk(t);
     if (a === "draft") return aiDraft(t);
