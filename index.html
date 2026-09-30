@@ -133,6 +133,12 @@
   .add .plus { color: var(--accent-hi); font-size: 20px; width: 18px; text-align: center; }
   .add input { flex: 1; min-width: 0; font-size: 14px; background: transparent; color: var(--ink); border: none; outline: none; padding: 10px 0; }
   .add input::placeholder { color: var(--ink-2); }
+  .add .tools { display: flex; align-items: center; gap: 2px; flex: none; }
+  .add .tool { position: relative; display: inline-flex; align-items: center; gap: 4px; height: 32px; padding: 0 8px; border-radius: 4px; border: none; background: transparent; color: var(--ink-2); font-size: 16px; cursor: pointer; }
+  .add .tool.on { color: var(--accent-hi); font-size: 12.5px; }
+  .add .tool input { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; cursor: pointer; } /* ネイティブの日付ピッカーをボタンの下に敷く */
+  .add .tool .x { margin-left: 2px; font-size: 14px; opacity: .7; }
+  .toast { position: fixed; left: 50%; bottom: 90px; transform: translateX(-50%); z-index: 200; background: var(--surface-3); color: #fff; border: 1px solid rgba(168,120,255,0.5); border-radius: 8px; padding: 10px 14px; font-size: 13.5px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); max-width: 90vw; }
   .add .go { flex: none; font-size: 13px; font-weight: 600; color: #fff; background: var(--accent-deep); border: none; border-radius: 4px; padding: 7px 14px; cursor: pointer; }
   .add .go:disabled { opacity: .35; cursor: default; }
 
@@ -161,7 +167,7 @@
   .drow .lbl { flex: 1; min-width: 0; }
   .drow.on .lbl, .drow.on .ico { color: var(--accent-hi); }
   .drow .clear { background: none; border: none; color: var(--muted); font-size: 16px; cursor: pointer; padding: 4px; }
-  .drow input[type=date] { flex: 1; font-size: 13.5px; background: transparent; color: var(--ink); border: none; outline: none; color-scheme: dark; }
+  .drow input[type=date], .drow input[type=datetime-local] { flex: 1; font-size: 13.5px; background: transparent; color: var(--ink); border: none; outline: none; color-scheme: dark; }
   .drow select { flex: 1; font-size: 13.5px; background: transparent; color: var(--ink); border: none; outline: none; }
   .drow select option { background: var(--surface-2); }
   .dnote { padding: 10px 14px; }
@@ -237,7 +243,7 @@
     .add { left: 10px; right: 10px; bottom: max(10px, env(safe-area-inset-bottom)); }
     .add input { font-size: 16px; }
     .cfg input, .cfg select { font-size: 16px; }
-    .dhead .title-in, .ai .q input, .stepadd input, .dnote textarea, .drow input[type=date], .drow select { font-size: 16px; }
+    .dhead .title-in, .ai .q input, .stepadd input, .dnote textarea, .drow input[type=date], .drow input[type=datetime-local], .drow select { font-size: 16px; }
     .brand .txt { display: none; }
   }
 </style>
@@ -317,7 +323,12 @@
           </div></div>
       </div>
       <div class="tasks-scroll" id="tasks-scroll"><div class="ptr" id="ptr-main"></div><ul class="tasks" id="tasks"></ul></div>
-      <div class="add"><span class="plus">＋</span><input id="add-input" placeholder="タスクの追加（AIが内容を確認します）" enterkeyhint="done"><button class="go" id="add-go" type="button">追加</button></div>
+      <div class="add"><span class="plus">＋</span><input id="add-input" placeholder="タスクの追加（AIが内容を確認します）" enterkeyhint="done">
+        <span class="tools">
+          <button class="tool" id="add-due" type="button" title="期限日を追加"><span id="add-due-lbl">📅</span><input type="date" id="add-due-in" tabindex="-1"></button>
+          <button class="tool" id="add-remind" type="button" title="通知（アプリを開いているときに知らせます）"><span id="add-remind-lbl">⏰</span><input type="datetime-local" id="add-remind-in" tabindex="-1"></button>
+        </span>
+        <button class="go" id="add-go" type="button">追加</button></div>
     </section>
 
     <!-- 詳細ペイン -->
@@ -328,13 +339,15 @@
 <script>
 /* ================================================================
    データ層（localStorage が主・GitHub は同期先）
-   tasks: [{id,title,done,important,myDay,due,listId,steps:[{id,title,done}],note,ai,ct,mt}]
+   tasks: [{id,title,done,important,myDay,due,remind,remindFired,listId,steps:[{id,title,done}],note,ai,ct,mt}]
+   remind: "YYYY-MM-DDTHH:MM"（ローカル時刻）。アプリを開いている間だけ監視し、時刻が来たら通知する
    lists: [{id,name,ct,mt}]   deleted: [id...]（墓標。端末間で削除を伝播）
    ================================================================ */
 const KEY = "shiden_tasks_v1", DEL_KEY = "shiden_tasks_deleted_v1", CFG_KEY = "shiden_tasks_cfg";
 
 /* ---- バージョンと更新履歴（公開版が反映されているかの確認用。変更のたびに先頭へ追記する） ---- */
 const CHANGELOG = [
+  ["2026-09-30.18", "追加バーに 📅 期限・⏰ 通知ボタンを追加。詳細にも通知欄。時刻になるとOS通知またはトースト（アプリを開いている間のみ）"],
   ["2026-09-30.17", "PC: タスクが増えると一覧をスクロールできない不具合を修正"],
   ["2026-09-30.16", "スマホ: タスクに触れたときの選択風ハイライトを廃止"],
   ["2026-09-30.15", "スマホ: 完了○のタップ判定を拡大（約50px四方）"],
@@ -376,6 +389,14 @@ function fmtDue(d) {
   const [y, m, dd] = d.split("-").map(Number); const dt = new Date(y, m - 1, dd);
   return dt.toLocaleDateString("ja-JP", { month: "numeric", day: "numeric", weekday: "short" });
 }
+function fmtRemind(r) {
+  // "YYYY-MM-DDTHH:MM" → "10/6 9:00"（今日なら "今日 9:00"）
+  const [d, hm] = r.split("T"); if (!d || !hm) return r;
+  const [h, m] = hm.split(":"); const time = Number(h) + ":" + m;
+  if (d === todayStr()) return "今日 " + time;
+  const [y, mo, dd] = d.split("-").map(Number);
+  return mo + "/" + dd + " " + time;
+}
 const isMobile = () => window.innerWidth <= 900;
 
 let db = load();
@@ -386,8 +407,9 @@ let doneOpen = true;          // 「完了」セクションの開閉
 function touch(t) { t.mt = now(); save(db); scheduleSync(); }
 function task(id) { return db.tasks.find(t => t.id === id); }
 
-function addTask(title, listId) {
-  const t = { id: newId(), title, done: false, important: view === "important", myDay: view === "myday", due: view === "planned" ? todayStr() : "", listId: listId || (SMART[view] ? "" : view), steps: [], note: "", ai: null, ct: now(), mt: now() };
+function addTask(title, listId, opt) {
+  opt = opt || {};
+  const t = { id: newId(), title, done: false, important: view === "important", myDay: view === "myday", due: opt.due || (view === "planned" ? todayStr() : ""), remind: opt.remind || "", remindFired: false, listId: listId || (SMART[view] ? "" : view), steps: [], note: "", ai: null, ct: now(), mt: now() };
   db.tasks.push(t); save(db); scheduleSync();
   return t;
 }
@@ -448,6 +470,7 @@ function renderList() {
     if (SMART[view] && ln) meta.push(`<span>${esc(ln)}</span>`);
     if (t.myDay && view !== "myday") meta.push(`<span>☀️ 今日の予定</span>`);
     if (t.due) meta.push(`<span class="${!t.done && t.due < td ? "over" : (t.due === td ? "today" : "")}">📅 ${fmtDue(t.due)}</span>`);
+    if (t.remind && !t.done) meta.push(`<span class="${t.remindFired ? "" : "today"}">⏰ ${fmtRemind(t.remind)}</span>`);
     if (t.steps.length) meta.push(`<span>${t.steps.filter(s => s.done).length}/${t.steps.length}</span>`);
     if (t.note) meta.push(`<span>📝</span>`);
     if (t.ai && t.ai.draft) meta.push(`<span class="aim">⚡ 下書きあり</span>`);
@@ -484,6 +507,7 @@ function renderDetail() {
       </div>
       <div class="dcard">
         <div class="drow ${t.due ? "on" : ""}"><span class="ico">📅</span><input type="date" id="d-due" value="${esc(t.due)}" title="期限日">${t.due ? `<button class="clear" data-clear="due" title="期限を削除">×</button>` : ""}</div>
+        <div class="drow ${t.remind ? "on" : ""}"><span class="ico">⏰</span><input type="datetime-local" id="d-remind" value="${esc(t.remind)}" title="通知（アプリを開いているときに知らせます）">${t.remind ? `<button class="clear" data-clear="remind" title="通知を削除">×</button>` : ""}</div>
         <div class="drow"><span class="ico">☰</span><select id="d-list" title="リスト"><option value="">タスク</option>${db.lists.map(l => `<option value="${l.id}" ${t.listId === l.id ? "selected" : ""}>${esc(l.name)}</option>`).join("")}</select></div>
       </div>
       <div class="dcard dnote"><textarea id="d-note" placeholder="メモの追加">${esc(t.note)}</textarea></div>
@@ -633,7 +657,9 @@ document.getElementById("tasks").addEventListener("click", e => {
 function submitAdd() {
   const input = document.getElementById("add-input");
   const v = input.value.trim(); if (!v) return;
-  const t = addTask(v); input.value = "";
+  const dueIn = document.getElementById("add-due-in"), remIn = document.getElementById("add-remind-in");
+  const t = addTask(v, null, { due: dueIn.value, remind: remIn.value }); input.value = "";
+  dueIn.value = ""; remIn.value = ""; renderAddTools();
   // 追加時は詳細を開かず一覧に足すだけ（PC・スマホ共通）。AIの問い返しは裏で走り、行に「⚡ 回答待ち」が付く
   if (!isMobile()) input.focus(); // PCは続けて入力できるようフォーカスを戻す
   render();
@@ -641,6 +667,44 @@ function submitAdd() {
 }
 document.getElementById("add-input").addEventListener("keydown", e => { if (e.key === "Enter") submitAdd(); });
 document.getElementById("add-go").addEventListener("click", submitAdd);
+// 追加バーの 📅 / ⏰: 選択済みなら日付を表示し、× で解除
+function renderAddTools() {
+  const due = document.getElementById("add-due-in").value, rem = document.getElementById("add-remind-in").value;
+  const dl = document.getElementById("add-due-lbl"), rl = document.getElementById("add-remind-lbl");
+  document.getElementById("add-due").classList.toggle("on", !!due); document.getElementById("add-remind").classList.toggle("on", !!rem);
+  dl.innerHTML = due ? `📅 ${fmtDue(due)}<span class="x" data-x="due">×</span>` : "📅";
+  rl.innerHTML = rem ? `⏰ ${fmtRemind(rem)}<span class="x" data-x="remind">×</span>` : "⏰";
+}
+["add-due-in", "add-remind-in"].forEach(id => document.getElementById(id).addEventListener("change", () => { if (id === "add-remind-in" && document.getElementById(id).value) askNotifyPermission(); renderAddTools(); }));
+document.querySelector(".add .tools").addEventListener("click", e => {
+  const x = e.target.closest("[data-x]");
+  if (x) { e.preventDefault(); e.stopPropagation(); document.getElementById(x.dataset.x === "due" ? "add-due-in" : "add-remind-in").value = ""; renderAddTools(); return; }
+  const btn = e.target.closest(".tool"); if (!btn) return;
+  const inp = btn.querySelector("input");
+  try { if (inp.showPicker) inp.showPicker(); else inp.focus(); } catch (err) { inp.focus(); }
+});
+
+/* ================================================================
+   通知（⏰）: アプリを開いている間、30秒ごとに時刻を監視して知らせる
+   ・OSの通知（Notification API）を許可していればOS通知、無ければ画面内トースト
+   ・Web Push（サーバー要）は使わないため、アプリを閉じている間は鳴らない
+   ================================================================ */
+function askNotifyPermission() { if ("Notification" in window && Notification.permission === "default") Notification.requestPermission(); }
+function toast(msg) { const el = document.createElement("div"); el.className = "toast"; el.textContent = msg; document.body.appendChild(el); setTimeout(() => el.remove(), 6000); }
+function checkReminders() {
+  const nowLocal = new Date(); const cur = nowLocal.getFullYear() + "-" + String(nowLocal.getMonth() + 1).padStart(2, "0") + "-" + String(nowLocal.getDate()).padStart(2, "0") + "T" + String(nowLocal.getHours()).padStart(2, "0") + ":" + String(nowLocal.getMinutes()).padStart(2, "0");
+  let changed = false;
+  db.tasks.forEach(t => {
+    if (!t.remind || t.remindFired || t.done || t.remind > cur) return;
+    t.remindFired = true; t.mt = now(); changed = true;
+    const body = "Shiden Tasks の通知";
+    if ("Notification" in window && Notification.permission === "granted") { try { new Notification(t.title, { body, icon: "icon-192.png", tag: t.id }); } catch (e) { toast("⏰ " + t.title); } }
+    else toast("⏰ " + t.title);
+  });
+  if (changed) { save(db); scheduleSync(); render(); }
+}
+setInterval(checkReminders, 30000);
+checkReminders();
 
 function bindDetail(t) {
   const el = document.getElementById("detail");
@@ -652,6 +716,8 @@ function bindDetail(t) {
   el.querySelector("#d-myday").addEventListener("click", e => { if (e.target.closest("[data-clear]")) { t.myDay = false; } else if (!t.myDay) t.myDay = true; else return; touch(t); render(); });
   el.querySelector("#d-due").addEventListener("change", e => { t.due = e.target.value; touch(t); render(); });
   const dc = el.querySelector("[data-clear=due]"); if (dc) dc.addEventListener("click", () => { t.due = ""; touch(t); render(); });
+  el.querySelector("#d-remind").addEventListener("change", e => { t.remind = e.target.value; t.remindFired = false; if (t.remind) askNotifyPermission(); touch(t); render(); });
+  const rc = el.querySelector("[data-clear=remind]"); if (rc) rc.addEventListener("click", () => { t.remind = ""; t.remindFired = false; touch(t); render(); });
   el.querySelector("#d-list").addEventListener("change", e => { t.listId = e.target.value; touch(t); render(); });
   el.querySelector("#d-note").addEventListener("change", e => { t.note = e.target.value; touch(t); renderList(); });
   el.querySelector("#d-step").addEventListener("keydown", e => { if (e.key !== "Enter") return; const v = e.target.value.trim(); if (!v) return; t.steps.push({ id: newId(), title: v, done: false }); touch(t); render(); setTimeout(() => document.getElementById("d-step").focus(), 0); });
