@@ -218,6 +218,8 @@
   .drow .ico { width: 18px; text-align: center; color: var(--ink-2); flex: none; }
   .drow .lbl { flex: 1; min-width: 0; }
   .drow.on .lbl, .drow.on .ico { color: var(--accent-hi); }
+  .drow .toggle { flex: none; font-size: 12px; color: var(--accent-hi); cursor: pointer; background: none; border: 1px solid var(--border); border-radius: 999px; padding: 4px 10px; margin-left: auto; }
+  .drow .toggle.on { background: rgba(124,58,237,0.18); }
   .drow .clear { background: none; border: none; color: var(--muted); font-size: 16px; cursor: pointer; padding: 4px; }
   .drow input[type=date], .drow input[type=datetime-local] { flex: 1; font-size: 13.5px; background: transparent; color: var(--ink); border: none; outline: none; color-scheme: dark; }
   .drow select { flex: 1; font-size: 13.5px; background: transparent; color: var(--ink); border: none; outline: none; }
@@ -417,7 +419,7 @@
 <script>
 /* ================================================================
    データ層（localStorage が主・GitHub は同期先）
-   tasks: [{id,title,done,priority(0-5),myDay,due,remind,remindFired,tags,listId,steps:[{id,title,done}],note,ai,ct,mt}]
+   tasks: [{id,title,done,priority(0-5),myDay,due,noDue(期限を設けない意思表示),remind,remindFired,tags,listId,steps:[{id,title,done}],note,ai,ct,mt}]
    remind: "YYYY-MM-DDTHH:MM"（ローカル時刻）。アプリを開いている間だけ監視し、時刻が来たら通知する
    tags: ["Teams","文章"] など。チャネル（TAG_CH）／種別（TAG_TY）の定型＋自由タグ
    lists: [{id,name,ct,mt}]   deleted: [id...]（墓標。端末間で削除を伝播）
@@ -426,6 +428,7 @@ const KEY = "shiden_tasks_v1", DEL_KEY = "shiden_tasks_deleted_v1", CFG_KEY = "s
 
 /* ---- バージョンと更新履歴（公開版が反映されているかの確認用。変更のたびに先頭へ追記する） ---- */
 const CHANGELOG = [
+  ["2026-09-30.54", "期限に「期限なし」を選べるように（選ぶと不完全扱いにならない）"],
   ["2026-09-30.53", "期限未設定も「不完全」に含める"],
   ["2026-09-30.52", "「優先」「今後の予定」のスマートリストを廃止（並べ替えで代替）"],
   ["2026-09-30.51", "並べ替え: 優先度／期限／追加日 × 降順／昇順（端末ごとに記憶）"],
@@ -507,7 +510,7 @@ function sortOpen(list) {
 }
 // 表示順は常に ツール（青）→ 種別（緑）→ 自由タグ。付けた順序に依存させない
 // ツール（青）・種別（緑）・優先度・期限のどれかが未設定なら「不完全」
-function tagIncomplete(t) { const g = t.tags || []; return !g.some(x => TAG_CH.includes(x)) || !g.some(x => TAG_TY.includes(x)) || !(t.priority > 0) || !t.due; }
+function tagIncomplete(t) { const g = t.tags || []; return !g.some(x => TAG_CH.includes(x)) || !g.some(x => TAG_TY.includes(x)) || !(t.priority > 0) || !(t.due || t.noDue); }
 const INCOMPLETE = "__incomplete"; // フィルタの特別値
 function sortTags(tags) {
   const rank = g => TAG_CH.includes(g) ? TAG_CH.indexOf(g) : TAG_TY.includes(g) ? 100 + TAG_TY.indexOf(g) : 200;
@@ -612,7 +615,7 @@ function renderList() {
   const chipOf = g => tagChip(g, tagFilter === g).replace('class="tag', `class="tag ${counts[g] ? "" : "zero"}`);
   const free = tagsHere.filter(g => !TAG_CH.includes(g) && !TAG_TY.includes(g));
   const nInc = all.filter(t => !t.done && tagIncomplete(t)).length;
-  const incChip = `<span class="tag warn ${tagFilter === INCOMPLETE ? "on" : ""} ${nInc ? "" : "zero"}" data-tag="${INCOMPLETE}" title="ツール・種別・優先度・期限のどれかが未設定のタスク">⚠ 不完全${nInc ? " " + nInc : ""}</span><span class="sep"></span>`;
+  const incChip = `<span class="tag warn ${tagFilter === INCOMPLETE ? "on" : ""} ${nInc ? "" : "zero"}" data-tag="${INCOMPLETE}" title="ツール・種別・優先度・期限（または期限なし）のどれかが未設定のタスク">⚠ 不完全${nInc ? " " + nInc : ""}</span><span class="sep"></span>`;
   document.getElementById("tagbar").innerHTML = incChip + TAG_CH.map(chipOf).join("") + `<span class="sep"></span>` + TAG_TY.map(chipOf).join("") + (free.length ? `<span class="sep"></span>` + free.map(chipOf).join("") : "") + (tagFilter ? `<button class="clear" data-tag="">× 絞り込み解除</button>` : "");
   const ts = tagFilter === INCOMPLETE ? all.filter(tagIncomplete) : tagFilter ? all.filter(t => (t.tags || []).includes(tagFilter)) : all;
   const open = sortOpen(ts.filter(t => !t.done));
@@ -626,6 +629,7 @@ function renderList() {
     const ln = t.listId ? (db.lists.find(l => l.id === t.listId) || {}).name : "タスク";
     if (SMART[view] && ln) meta.push(`<span>${esc(ln)}</span>`);
     if (t.due) meta.push(`<span class="${!t.done && t.due < td ? "over" : (t.due === td ? "today" : "")}">📅 ${fmtDue(t.due)}</span>`);
+    else if (t.noDue) meta.push(`<span>📅 期限なし</span>`);
     if (t.remind && !t.done) meta.push(`<span class="${t.remindFired ? "" : "today"}">⏰ ${fmtRemind(t.remind)}</span>`);
     if (t.steps.length) { const nx = t.steps.find(x => !x.done); meta.push(`<span>${t.steps.filter(s => s.done).length}/${t.steps.length}${nx && !t.done ? " → " + esc(nx.title) : ""}</span>`); }
     if (t.note) meta.push(`<span>📝</span>`);
@@ -673,7 +677,7 @@ function renderDetail() {
         ${(() => { const fr = (t.tags || []).filter(g => !TAG_CH.includes(g) && !TAG_TY.includes(g)); return fr.length ? `<div class="grp"><span class="lbl">旧タグ</span>${fr.map(g => tagChip(g, true)).join("")}<span style="font-size:11px">（タップで削除）</span></div>` : ""; })()}
       </div>
       <div class="dcard">
-        <div class="drow ${t.due ? "on" : ""}"><span class="ico">📅</span><input type="date" id="d-due" value="${esc(t.due)}" title="期限日">${t.due ? `<button class="clear" data-clear="due" title="期限を削除">×</button>` : ""}</div>
+        <div class="drow ${t.due || t.noDue ? "on" : ""}"><span class="ico">📅</span>${t.noDue ? `<span class="lbl">期限なし</span>` : `<input type="date" id="d-due" value="${esc(t.due)}" title="期限日">`}<button class="toggle ${t.noDue ? "on" : ""}" id="d-nodue" title="期限を設けないタスク">${t.noDue ? "期限を設定する" : "期限なし"}</button>${t.due ? `<button class="clear" data-clear="due" title="期限を削除">×</button>` : ""}</div>
         <div class="drow ${t.remind ? "on" : ""}"><span class="ico">⏰</span><input type="datetime-local" id="d-remind" value="${esc(t.remind)}" title="通知（アプリを開いているときに知らせます）">${t.remind ? `<button class="clear" data-clear="remind" title="通知を削除">×</button>` : ""}</div>
         <div class="drow"><span class="ico">☰</span><select id="d-list" title="リスト"><option value="">タスク</option>${db.lists.map(l => `<option value="${l.id}" ${t.listId === l.id ? "selected" : ""}>${esc(l.name)}</option>`).join("")}</select></div>
       </div>
@@ -1008,7 +1012,8 @@ function bindDetail(t) {
   const ta = el.querySelector("#d-title"); const grow = () => { ta.style.height = "auto"; ta.style.height = ta.scrollHeight + "px"; }; ta.addEventListener("input", grow); grow();
   el.querySelector(".dhead [data-act=toggle]").addEventListener("click", () => { t.done = !t.done; touch(t); render(); });
   el.querySelector(".dhead .prio").addEventListener("click", e => { const p = e.target.closest("[data-p]"); if (!p) return; const v = Number(p.dataset.p); t.priority = t.priority === v ? 0 : v; touch(t); render(); });
-  el.querySelector("#d-due").addEventListener("change", e => { t.due = e.target.value; touch(t); render(); });
+  const dd = el.querySelector("#d-due"); if (dd) dd.addEventListener("change", e => { t.due = e.target.value; if (t.due) t.noDue = false; touch(t); render(); });
+  el.querySelector("#d-nodue").addEventListener("click", () => { t.noDue = !t.noDue; if (t.noDue) t.due = ""; touch(t); render(); });
   const dc = el.querySelector("[data-clear=due]"); if (dc) dc.addEventListener("click", () => { t.due = ""; touch(t); render(); });
   el.querySelector("#d-remind").addEventListener("change", e => { t.remind = e.target.value; t.remindFired = false; if (t.remind) askNotifyPermission(); touch(t); render(); });
   const rc = el.querySelector("[data-clear=remind]"); if (rc) rc.addEventListener("click", () => { t.remind = ""; t.remindFired = false; touch(t); render(); });
