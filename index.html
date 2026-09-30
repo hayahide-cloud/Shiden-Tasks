@@ -135,12 +135,12 @@
   .add input { flex: 1; min-width: 0; font-size: 14px; background: transparent; color: var(--ink); border: none; outline: none; padding: 10px 0; }
   .add input::placeholder { color: var(--ink-2); }
   .add .tools { display: flex; align-items: center; gap: 2px; flex: none; }
-  .add .tool { position: relative; display: inline-flex; align-items: center; gap: 4px; height: 32px; padding: 0 8px; border-radius: 4px; border: none; background: transparent; color: var(--ink-2); font-size: 16px; cursor: pointer; }
+  .add .tool { position: relative; overflow: hidden; display: inline-flex; align-items: center; gap: 4px; height: 36px; padding: 0 8px; border-radius: 4px; border: none; background: transparent; color: var(--ink-2); font-size: 16px; cursor: pointer; }
   .add .tool.on { color: var(--accent-hi); font-size: 12.5px; }
-  .add .tool input { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; cursor: pointer; } /* ネイティブの日付ピッカーをボタンの下に敷く */
+  .add .tool input { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; min-width: 0; max-width: 100%; -webkit-appearance: none; appearance: none; font-size: 16px; cursor: pointer; } /* ネイティブの日付ピッカーをボタンの下に敷く（iOSでは本来の幅を持つので overflow:hidden で枠内に閉じ込める） */
   .add .tool .x { margin-left: 2px; font-size: 14px; opacity: .7; }
   .toast { position: fixed; left: 50%; bottom: 90px; transform: translateX(-50%); z-index: 200; background: var(--surface-3); color: #fff; border: 1px solid rgba(168,120,255,0.5); border-radius: 8px; padding: 10px 14px; font-size: 13.5px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); max-width: 90vw; }
-  .add .go { flex: none; font-size: 13px; font-weight: 600; color: #fff; background: var(--accent-deep); border: none; border-radius: 4px; padding: 7px 14px; cursor: pointer; }
+  .add .go { position: relative; z-index: 1; flex: none; font-size: 13px; font-weight: 600; color: #fff; background: var(--accent-deep); border: none; border-radius: 4px; padding: 7px 14px; min-height: 36px; cursor: pointer; }
   .add .go:disabled { opacity: .35; cursor: default; }
 
   /* 詳細ペイン（PCでは非表示時に消す。スマホはスライドで出入りするため display は使わない） */
@@ -243,6 +243,9 @@
     .task .title { font-size: 15px; }
     .add { margin: 6px 10px max(10px, env(safe-area-inset-bottom)); }
     .add input { font-size: 16px; }
+    .add { gap: 8px; padding-right: 8px; }
+    .add .go { min-height: 40px; padding: 0 16px; margin-left: 4px; }
+    .add .tool { height: 40px; }
     .cfg input, .cfg select { font-size: 16px; }
     .dhead .title-in, .ai .q input, .stepadd input, .dnote textarea, .drow input[type=date], .drow input[type=datetime-local], .drow select { font-size: 16px; }
     .brand .txt { display: none; }
@@ -351,6 +354,7 @@ const KEY = "shiden_tasks_v1", DEL_KEY = "shiden_tasks_deleted_v1", CFG_KEY = "s
 
 /* ---- バージョンと更新履歴（公開版が反映されているかの確認用。変更のたびに先頭へ追記する） ---- */
 const CHANGELOG = [
+  ["2026-09-30.23", "スマホ: 「追加」ボタンが ⏰ の入力欄に隠れて押せない不具合を修正"],
   ["2026-09-30.22", "リスト作成時にそのリストへ移動しない"],
   ["2026-09-30.21", "設定の owner / repo / path / branch を既定値入りに（トークンだけ入力すれば同期）"],
   ["2026-09-30.20", "設定に「通知の許可と動作確認」ボタンと状態表示を追加"],
