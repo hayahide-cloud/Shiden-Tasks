@@ -143,15 +143,15 @@
   .dtags input { flex: 1; min-width: 80px; font-size: 13px; background: var(--surface-3); color: var(--ink); border: 1px solid var(--grid); border-radius: 999px; padding: 4px 10px; outline: none; }
   @media (max-width: 900px) { .tagbar { padding: 0 12px 8px; } }
   /* 優先度バー（1〜5。右肩上がりの5本。音量表示のイメージ） */
-  .prio { flex: none; display: inline-flex; align-items: flex-end; gap: 2px; height: 18px; padding: 4px 6px; border-radius: 4px; cursor: pointer; }
-  .prio i { display: block; width: 4px; background: var(--grid); border-radius: 1px; transition: background .12s; }
-  .prio i:nth-child(1) { height: 5px; } .prio i:nth-child(2) { height: 8px; } .prio i:nth-child(3) { height: 11px; } .prio i:nth-child(4) { height: 14px; } .prio i:nth-child(5) { height: 17px; }
+  .prio { flex: none; display: inline-flex; align-items: flex-end; gap: 3px; height: 26px; padding: 4px 8px; border-radius: 4px; cursor: pointer; }
+  .prio i { display: block; width: 6px; background: var(--grid); border-radius: 1.5px; transition: background .12s; }
+  .prio i:nth-child(1) { height: 7px; } .prio i:nth-child(2) { height: 11px; } .prio i:nth-child(3) { height: 15px; } .prio i:nth-child(4) { height: 19px; } .prio i:nth-child(5) { height: 23px; }
   .prio[data-v="1"] i:nth-child(-n+1), .prio[data-v="2"] i:nth-child(-n+2), .prio[data-v="3"] i:nth-child(-n+3) { background: var(--accent); }
   .prio[data-v="4"] i:nth-child(-n+4) { background: var(--warn); }
   .prio[data-v="5"] i:nth-child(-n+5) { background: var(--bad); }
-  .prio.lg { height: 26px; gap: 3px; padding: 4px 8px; }
-  .prio.lg i { width: 6px; }
-  .prio.lg i:nth-child(1) { height: 7px; } .prio.lg i:nth-child(2) { height: 11px; } .prio.lg i:nth-child(3) { height: 15px; } .prio.lg i:nth-child(4) { height: 19px; } .prio.lg i:nth-child(5) { height: 23px; }
+  .prio.lg { height: 34px; gap: 4px; padding: 4px 10px; }
+  .prio.lg i { width: 8px; border-radius: 2px; }
+  .prio.lg i:nth-child(1) { height: 9px; } .prio.lg i:nth-child(2) { height: 14px; } .prio.lg i:nth-child(3) { height: 19px; } .prio.lg i:nth-child(4) { height: 24px; } .prio.lg i:nth-child(5) { height: 29px; }
   .prio i { position: relative; }
   .prio i::before { content: ""; position: absolute; left: -2px; right: -2px; top: -14px; bottom: -6px; } /* 細いバーでも押しやすいよう当たり判定を広げる */
   .star { flex: none; font-size: 17px; color: var(--muted); background: none; border: none; cursor: pointer; padding: 6px; border-radius: 4px; }
@@ -288,6 +288,8 @@
     .listhead h2 { font-size: 21px; }
     .tasks-scroll { padding: 0 12px 8px; }
     .task { min-height: 56px; gap: 12px; -webkit-touch-callout: none; user-select: none; }
+    .prio { height: 30px; gap: 4px; padding: 4px 8px; } .prio i { width: 7px; }
+    .prio i:nth-child(1) { height: 8px; } .prio i:nth-child(2) { height: 13px; } .prio i:nth-child(3) { height: 18px; } .prio i:nth-child(4) { height: 22px; } .prio i:nth-child(5) { height: 27px; }
     .nav li { -webkit-touch-callout: none; user-select: none; }
     /* ○のタップ判定を広げる: 見た目は22pxのまま、透明な当たり判定を上下左右14px分足す（約50px四方） */
     .chk { width: 22px; height: 22px; position: relative; }
@@ -409,6 +411,7 @@ const KEY = "shiden_tasks_v1", DEL_KEY = "shiden_tasks_deleted_v1", CFG_KEY = "s
 
 /* ---- バージョンと更新履歴（公開版が反映されているかの確認用。変更のたびに先頭へ追記する） ---- */
 const CHANGELOG = [
+  ["2026-09-30.45", "優先度バーを大きく表示"],
   ["2026-09-30.44", "AIで分解の粒度を「意味のあるまとまり」単位（3〜6ステップ）に変更し、タグを段取りの骨組みに使う。細分化は各ステップの 🧩 で"],
   ["2026-09-30.43", "ADHD式タスク分解: 「🧩 AIで分解」でタスクを最小単位のステップに分解、各ステップの 🧩 でさらに細分化。詳細に「次の一歩」を強調、一覧にも次のステップを表示"],
   ["2026-09-30.42", "5分間操作が無いとき・画面に戻ったときに自動同期（他端末の変更を取り込む）"],
