@@ -382,6 +382,7 @@ const KEY = "shiden_tasks_v1", DEL_KEY = "shiden_tasks_deleted_v1", CFG_KEY = "s
 
 /* ---- バージョンと更新履歴（公開版が反映されているかの確認用。変更のたびに先頭へ追記する） ---- */
 const CHANGELOG = [
+  ["2026-09-30.28", "種別タグ「実施」を「対応」に改名（既存データは自動移行）"],
   ["2026-09-30.27", "種別タグに「実施」を追加"],
   ["2026-09-30.26", "タグ付け: 案件（Teams/Outlook/LINE）と種別（文章/作成/検討/手配）＋自由タグ。一覧でタグ絞り込み。AIが判定時にタグを自動提案"],
   ["2026-09-30.25", "AI補助を拡張: 「手配・調べもの」種類を追加しWeb検索で候補を提示（リンク付き）。段取り案を「ステップに追加」できる。作業タスクも手順をステップ化"],
@@ -416,7 +417,8 @@ document.getElementById("changelog").innerHTML = CHANGELOG.map(([v, m], i) => `<
 const SMART = { myday: "今日の予定", important: "重要", planned: "今後の予定", all: "タスク" };
 const SMART_ICO = { myday: "☀️", important: "⭐", planned: "📅", all: "🏠" };
 const TAG_CH = ["Teams", "Outlook", "LINE"];            // どこの案件か
-const TAG_TY = ["文章", "作成", "検討", "手配", "実施"];  // どんな仕事か（実施＝アンケート回答・申請など、考えずにサッと片付ける軽い作業）
+const TAG_TY = ["文章", "作成", "検討", "手配", "対応"];  // どんな仕事か（対応＝アンケート回答・申請など、考えずにサッと片付ける軽い作業）
+const TAG_RENAME = { "実施": "対応" }; // 旧名称の移行（読み込み時に置換）
 function tagClass(tag) { return TAG_CH.includes(tag) ? "ch" : TAG_TY.includes(tag) ? "ty" : "fr"; }
 function tagChip(tag, on) { return `<span class="tag ${tagClass(tag)} ${on ? "on" : ""}" data-tag="${esc(tag)}">${esc(tag)}</span>`; }
 let tagFilter = null; // 一覧のタグ絞り込み（null=すべて）
@@ -449,6 +451,9 @@ function fmtRemind(r) {
 const isMobile = () => window.innerWidth <= 900;
 
 let db = load();
+// 旧タグ名の移行（実施→対応）。同期で戻ってきたデータにも適用するため render 前に毎回通す
+function migrateTags() { let ch = false; db.tasks.forEach(t => { if (!t.tags) return; const n = t.tags.map(g => TAG_RENAME[g] || g); if (n.join() !== t.tags.join()) { t.tags = [...new Set(n)]; t.mt = now(); ch = true; } }); if (ch) { save(db); scheduleSync(); } }
+migrateTags();
 let view = "myday";           // 表示中のリスト（スマート or リストid）
 let selectedId = null;        // 詳細表示中のタスク
 let doneOpen = true;          // 「完了」セクションの開閉
@@ -490,7 +495,7 @@ function visibleTasks() {
 /* ================================================================
    描画
    ================================================================ */
-function render() { renderNav(); renderList(); renderDetail(); document.body.classList.toggle("m-list", mobileScreen === "list"); }
+function render() { migrateTags(); renderNav(); renderList(); renderDetail(); document.body.classList.toggle("m-list", mobileScreen === "list"); }
 let mobileScreen = "home"; // スマホ: "home"=リスト一覧 / "list"=タスク一覧
 
 function renderNav() {
@@ -681,7 +686,7 @@ const SYS_ASK = `あなたは日本語のタスク管理アシスタントです
 - meeting: 会議や打ち合わせの日程調整
 - research: 予約・手配・購入・調べもの（例: ゴルフのセッティング、店の予約、旅行、備品の購入、比較検討）。この場合は同行者・希望日時・場所や地域・予算・条件を聞く
 - work: 自分で行う作業（資料作成、週報、確認作業など）。この場合は成果物・期限・材料を聞く
-さらに tags として、案件のチャネル（Teams / Outlook / LINE のいずれか。分からなければ入れない）と仕事の種別（文章=文を書く / 作成=資料や物を作る / 検討=考える・比較する / 手配=予約や調達 / 実施=アンケート回答・申請・提出など考えずにすぐ片付く軽い作業、のいずれか1つ）を付ける。
+さらに tags として、案件のチャネル（Teams / Outlook / LINE のいずれか。分からなければ入れない）と仕事の種別（文章=文を書く / 作成=資料や物を作る / 検討=考える・比較する / 手配=予約や調達 / 対応=アンケート回答・申請・提出など考えずにすぐ片付く軽い作業、のいずれか1つ）を付ける。
 {"kind":"email|teams|meeting|line|research|work|other","tags":["Teams","文章"],"questions":["…","…"]}`;
 
 const SYS_DRAFT = `あなたは日本語のビジネス文書アシスタントです。ユーザーの仕事環境は Outlook メール・Microsoft Teams・LINE です。
