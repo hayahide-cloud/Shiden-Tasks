@@ -482,6 +482,7 @@ const KEY = "shiden_tasks_v1", DEL_KEY = "shiden_tasks_deleted_v1", CFG_KEY = "s
 
 /* ---- バージョンと更新履歴（公開版が反映されているかの確認用。変更のたびに先頭へ追記する） ---- */
 const CHANGELOG = [
+  ["2026-09-30.89", "表示切替（マトリクス／アーカイブ／タスク）でタグ絞り込みを解除"],
   ["2026-09-30.88", "期限超過後に期限を変えると「超過履歴 N回」を記録。超過歴のあるタスクは再設定後も赤字のまま"],
   ["2026-09-30.87", "詳細ペイン未選択時の × の見た目を統一"],
   ["2026-09-30.86", "マトリクスの緊急判定を「超過＋3営業日以内」に（土日は飛ばす。木曜なら月曜まで）"],
@@ -766,6 +767,7 @@ function renderList() {
     </li>`;
   };
   if (view === "matrix") {
+    tagFilter = null; // マトリクスでは絞り込みを使わない
     document.getElementById("tagbar").hidden = true; document.getElementById("sort-btn").hidden = true;
     document.getElementById("list-date").textContent = `重要＝優先度4以上 ／ 緊急＝期限が ${fmtDue(urgentLimit())} まで（超過＋3営業日）`;
     const Q = [["q1", "🔥 緊急 × 重要", "今すぐやる"], ["q2", "🎯 重要・緊急でない", "予定を決めてやる"], ["q3", "⚡ 緊急・重要でない", "さっと片付ける／任せる"], ["q4", "🌫 どちらでもない", "減らす・やめる"]];
@@ -1044,7 +1046,7 @@ async function copyText(s, label) {
    ================================================================ */
 document.getElementById("nav").addEventListener("click", e => {
   const li = e.target.closest("li[data-view]"); if (!li) return;
-  view = li.dataset.view; selectedId = null; mobileScreen = "list"; render();
+  view = li.dataset.view; selectedId = null; tagFilter = null; mobileScreen = "list"; render(); // 表示を切り替えたら絞り込みは解除
   document.getElementById("side").classList.remove("open");
 });
 document.getElementById("back").addEventListener("click", () => { mobileScreen = "home"; selectedId = null; render(); });
@@ -1065,7 +1067,7 @@ document.getElementById("list-title").addEventListener("click", e => {
   p.innerHTML = Object.keys(SMART).map(k => `<button type="button" data-view="${k}" class="${view === k ? "on" : ""}">${SMART_ICO[k]} ${SMART[k]}</button>`).join("");
   p.hidden = !p.hidden;
 });
-document.getElementById("view-pop").addEventListener("click", e => { const b = e.target.closest("[data-view]"); if (!b) return; e.stopPropagation(); view = b.dataset.view; selectedId = null; document.getElementById("view-pop").hidden = true; render(); });
+document.getElementById("view-pop").addEventListener("click", e => { const b = e.target.closest("[data-view]"); if (!b) return; e.stopPropagation(); view = b.dataset.view; selectedId = null; tagFilter = null; document.getElementById("view-pop").hidden = true; render(); });
 document.addEventListener("click", () => { document.getElementById("view-pop").hidden = true; });
 // 並べ替えメニュー
 document.getElementById("sort-btn").addEventListener("click", e => { e.stopPropagation(); document.getElementById("list-pop").hidden = true; const p = document.getElementById("sort-pop"); p.hidden = !p.hidden; });
