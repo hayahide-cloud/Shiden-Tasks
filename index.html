@@ -271,10 +271,10 @@
     <div class="cfg-head"><button class="ibtn back" id="cfg-close" type="button" title="戻る">‹</button>設定</div>
     <div class="cfg-body"><div class="cfg-inner">
     <h3>GitHub 同期</h3>
-    <label>Private リポジトリにタスクを保存します（各端末で1回設定）。Fine-grained トークンは対象リポジトリのみ・Contents読み書きで発行してください。</label>
+    <label>Private リポジトリにタスクを保存します。各端末でトークンを1回入れるだけで同期が始まります（Fine-grained トークン: Repository access に Hayahide-Log、Contents を Read and write）。</label>
     <div class="cfg-grid">
-      <input id="cfg-owner" placeholder="owner（例: hayahide-cloud）" autocapitalize="off" autocorrect="off">
-      <input id="cfg-repo" placeholder="repo（例: Hayahide-Log）" autocapitalize="off" autocorrect="off">
+      <input id="cfg-owner" placeholder="owner" value="hayahide-cloud" autocapitalize="off" autocorrect="off">
+      <input id="cfg-repo" placeholder="repo" value="Hayahide-Log" autocapitalize="off" autocorrect="off">
       <input id="cfg-path" placeholder="path（例: tasks.json）" value="tasks.json" autocapitalize="off" autocorrect="off">
       <input id="cfg-branch" placeholder="branch（例: main）" value="main" autocapitalize="off" autocorrect="off">
       <input id="cfg-token" type="password" placeholder="Fine-grained token（github_pat_...）" autocapitalize="off" autocorrect="off">
@@ -351,6 +351,7 @@ const KEY = "shiden_tasks_v1", DEL_KEY = "shiden_tasks_deleted_v1", CFG_KEY = "s
 
 /* ---- バージョンと更新履歴（公開版が反映されているかの確認用。変更のたびに先頭へ追記する） ---- */
 const CHANGELOG = [
+  ["2026-09-30.21", "設定の owner / repo / path / branch を既定値入りに（トークンだけ入力すれば同期）"],
   ["2026-09-30.20", "設定に「通知の許可と動作確認」ボタンと状態表示を追加"],
   ["2026-09-30.19", "追加バーを一覧の下の固定帯に（タスクが裏に透けない）"],
   ["2026-09-30.18", "追加バーに 📅 期限・⏰ 通知ボタンを追加。詳細にも通知欄。時刻になるとOS通知またはトースト（アプリを開いている間のみ）"],
@@ -825,8 +826,9 @@ function scheduleSync() { if (!cfgOk(getCfg())) return; clearTimeout(syncTimer);
 
 function fillCfg() {
   const c = getCfg();
-  document.getElementById("cfg-owner").value = c.owner || "";
-  document.getElementById("cfg-repo").value = c.repo || "";
+  // owner / repo は既定値入り（公開情報なので問題なし）。トークンだけ手入力すれば同期が始まる
+  document.getElementById("cfg-owner").value = c.owner || "hayahide-cloud";
+  document.getElementById("cfg-repo").value = c.repo || "Hayahide-Log";
   document.getElementById("cfg-path").value = c.path || "tasks.json";
   document.getElementById("cfg-branch").value = c.branch || "main";
   document.getElementById("cfg-token").value = c.token || "";
@@ -837,7 +839,7 @@ document.getElementById("gh-config").addEventListener("click", () => { fillCfg()
 document.getElementById("cfg-close").addEventListener("click", () => panel.classList.remove("open"));
 document.getElementById("cfg-save").addEventListener("click", () => {
   setCfg({
-    owner: document.getElementById("cfg-owner").value.trim(), repo: document.getElementById("cfg-repo").value.trim(),
+    owner: document.getElementById("cfg-owner").value.trim() || "hayahide-cloud", repo: document.getElementById("cfg-repo").value.trim() || "Hayahide-Log",
     path: document.getElementById("cfg-path").value.trim() || "tasks.json", branch: document.getElementById("cfg-branch").value.trim() || "main",
     token: document.getElementById("cfg-token").value.trim(),
     openai: document.getElementById("cfg-openai").value.trim(), model: document.getElementById("cfg-model").value,
