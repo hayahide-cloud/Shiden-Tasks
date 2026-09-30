@@ -399,6 +399,7 @@ const KEY = "shiden_tasks_v1", DEL_KEY = "shiden_tasks_deleted_v1", CFG_KEY = "s
 
 /* ---- バージョンと更新履歴（公開版が反映されているかの確認用。変更のたびに先頭へ追記する） ---- */
 const CHANGELOG = [
+  ["2026-09-30.42", "5分間操作が無いとき・画面に戻ったときに自動同期（他端末の変更を取り込む）"],
   ["2026-09-30.41", "同期の負荷を軽減: 操作が止まって6秒後に送信（最長30秒）、同期中の変更も取りこぼさない、リモート変更が無ければ再描画しない"],
   ["2026-09-30.40", "★重要を廃止し、優先度1〜5（右肩上がりのバー）に変更。旧★は優先度4に移行。「重要」リストは「優先」（4以上）に"],
   ["2026-09-30.39", "ツールタグに Web を追加"],
@@ -1019,10 +1020,17 @@ function scheduleSync() {
   const t = now(); if (!syncFirstChange) syncFirstChange = t;
   clearTimeout(syncTimer);
   const wait = Math.max(0, Math.min(SYNC_IDLE, syncFirstChange + SYNC_MAX_WAIT - t));
-  syncTimer = setTimeout(() => { syncFirstChange = 0; sync(); }, wait);
+  syncTimer = setTimeout(() => { syncTimer = null; syncFirstChange = 0; sync(); }, wait);
 }
+// 5分間操作が無ければ、変更が無くても一度同期する（他端末の変更を取り込む）。画面が裏のときは動かさない
+const IDLE_SYNC = 5 * 60 * 1000;
+let lastActivity = now();
+["pointerdown", "keydown", "touchstart"].forEach(ev => document.addEventListener(ev, () => { lastActivity = now(); }, { passive: true, capture: true }));
+setInterval(() => { if (!document.hidden && !syncing && !syncTimer && now() - lastActivity >= IDLE_SYNC && cfgOk(getCfg())) sync(); }, 60 * 1000);
+// 画面に戻ってきたとき（アプリ切替・タブ復帰）も一度同期する
+document.addEventListener("visibilitychange", () => { if (!document.hidden && !syncing && cfgOk(getCfg())) sync(); });
 // ページを閉じる／裏に回すときは待たずに送る
-document.addEventListener("visibilitychange", () => { if (document.hidden && syncTimer) { clearTimeout(syncTimer); syncFirstChange = 0; sync(); } });
+document.addEventListener("visibilitychange", () => { if (document.hidden && syncTimer) { clearTimeout(syncTimer); syncTimer = null; syncFirstChange = 0; sync(); } });
 
 function fillCfg() {
   const c = getCfg();
