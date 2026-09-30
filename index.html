@@ -76,11 +76,9 @@
   /* PC は詳細ペインを常に確保する（未選択時はプレースホルダ）。スマホは has-detail のときだけ重ねる */
   .app { flex: 1; min-height: 0; display: grid; grid-template-columns: var(--side-w) 1fr var(--detail-w); grid-template-rows: minmax(0, 1fr); overflow: hidden; }
   @media (min-width: 901px) {
-    .app.side-hidden { grid-template-columns: 0 1fr var(--detail-w); }
     .app.detail-hidden { grid-template-columns: var(--side-w) 1fr 0; }
-    .app.side-hidden.detail-hidden { grid-template-columns: 0 1fr 0; }
-    .app.side-hidden .side, .app.detail-hidden .detail { display: none; }
-    #side-collapse.on, #detail-collapse.on { color: var(--accent-hi); }
+    .app.detail-hidden .detail { display: none; }
+    #detail-collapse.on { color: var(--accent-hi); }
     .detail .placeholder .close { position: absolute; top: 10px; right: 12px; }
     .detail { position: relative; }
   }
@@ -347,7 +345,6 @@
 <div class="shell">
   <!-- アプリバー -->
   <div class="appbar">
-    <button class="ibtn pc-only" id="side-collapse" type="button" title="サイドバーを格納／展開">☰</button>
     <span class="brand"><svg viewBox="0 0 512 512" aria-hidden="true">
       <defs>
         <linearGradient id="badge-bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#a855f7"/><stop offset="1" stop-color="#6d28d9"/></linearGradient>
@@ -467,7 +464,8 @@ const KEY = "shiden_tasks_v1", DEL_KEY = "shiden_tasks_deleted_v1", CFG_KEY = "s
 
 /* ---- バージョンと更新履歴（公開版が反映されているかの確認用。変更のたびに先頭へ追記する） ---- */
 const CHANGELOG = [
-  ["2026-09-30.78", "PC: 詳細ペインを × で格納（▭ 詳細 で再表示・タスク選択でも再表示）、サイドバーを ☰ で格納"],
+  ["2026-09-30.79", "サイドバーの格納は廃止（詳細ペインの格納のみ）"],
+  ["2026-09-30.78", "PC: 詳細ペインを × で格納（▭ 詳細 で再表示・タスク選択でも再表示）"],
   ["2026-09-30.77", "並べ替え: 優先度⇄期限を主副で組み合わせ。「追加日」は廃止"],
   ["2026-09-30.76", "種別タグの先頭に「確認」を追加"],
   ["2026-09-30.75", "区分に「石油部会 執行部」を追加（通常タスクと同じ扱い）"],
@@ -727,15 +725,13 @@ function renderList() {
 
 // PC のペイン格納状態（端末ごとに記憶）
 const PANES_KEY = "shiden_tasks_panes";
-let panes = (() => { try { return Object.assign({ side: true, detail: true }, JSON.parse(localStorage.getItem(PANES_KEY)) || {}); } catch (e) { return { side: true, detail: true }; } })();
+let panes = (() => { try { return Object.assign({ detail: true }, JSON.parse(localStorage.getItem(PANES_KEY)) || {}); } catch (e) { return { detail: true }; } })();
 function applyPanes() {
   const app = document.getElementById("app");
-  app.classList.toggle("side-hidden", !panes.side); app.classList.toggle("detail-hidden", !panes.detail);
-  document.getElementById("side-collapse").classList.toggle("on", !panes.side);
+  app.classList.toggle("detail-hidden", !panes.detail);
   document.getElementById("detail-collapse").classList.toggle("on", !panes.detail);
   localStorage.setItem(PANES_KEY, JSON.stringify(panes));
 }
-document.getElementById("side-collapse").addEventListener("click", () => { panes.side = !panes.side; applyPanes(); });
 document.getElementById("detail-collapse").addEventListener("click", () => { panes.detail = !panes.detail; applyPanes(); });
 function renderDetail() {
   const el = document.getElementById("detail"), app = document.getElementById("app");
