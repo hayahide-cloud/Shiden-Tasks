@@ -221,7 +221,11 @@
     .listhead .back { display: inline-flex; font-size: 22px; }
     .listhead h2 { font-size: 21px; }
     .tasks-scroll { padding: 0 12px 90px; }
-    .task { min-height: 56px; }
+    .task { min-height: 56px; gap: 12px; }
+    /* ○のタップ判定を広げる: 見た目は22pxのまま、透明な当たり判定を上下左右14px分足す（約50px四方） */
+    .chk { width: 22px; height: 22px; position: relative; }
+    .chk::before { content: ""; position: absolute; inset: -14px; }
+    .steps .chk { width: 18px; height: 18px; }
     .task .title { font-size: 15px; }
     .add { left: 10px; right: 10px; bottom: max(10px, env(safe-area-inset-bottom)); }
     .add input { font-size: 16px; }
@@ -324,6 +328,7 @@ const KEY = "shiden_tasks_v1", DEL_KEY = "shiden_tasks_deleted_v1", CFG_KEY = "s
 
 /* ---- バージョンと更新履歴（公開版が反映されているかの確認用。変更のたびに先頭へ追記する） ---- */
 const CHANGELOG = [
+  ["2026-09-30.15", "スマホ: 完了○のタップ判定を拡大（約50px四方）"],
   ["2026-09-30.14", "スマホも: タスク追加時に詳細を開かない"],
   ["2026-09-30.13", "PC: タスク追加時に詳細を開かず、続けて入力できるように"],
   ["2026-09-30.12", "スマホ: 一覧の上端で下に引っ張って離すと同期"],
