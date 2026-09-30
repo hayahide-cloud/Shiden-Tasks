@@ -413,6 +413,7 @@ const KEY = "shiden_tasks_v1", DEL_KEY = "shiden_tasks_deleted_v1", CFG_KEY = "s
 
 /* ---- バージョンと更新履歴（公開版が反映されているかの確認用。変更のたびに先頭へ追記する） ---- */
 const CHANGELOG = [
+  ["2026-09-30.49", "自由タグの追加を廃止（定型のツール・種別のみ）。既存の自由タグは削除のみ可"],
   ["2026-09-30.48", "詳細のタイトル欄を最初から2行分の高さに固定"],
   ["2026-09-30.47", "「タグ不完全」を「不完全」に改名し、優先度未設定も対象に"],
   ["2026-09-30.46", "詳細のタイトルを折り返し表示（長いタスク名も全文見える）"],
@@ -643,7 +644,7 @@ function renderDetail() {
       <div class="dcard dtags">
         <div class="grp"><span class="lbl">🏷 ツール</span>${TAG_CH.map(g => tagChip(g, (t.tags || []).includes(g))).join("")}</div>
         <div class="grp"><span class="lbl">種別</span>${TAG_TY.map(g => tagChip(g, (t.tags || []).includes(g))).join("")}</div>
-        <div class="grp"><span class="lbl">その他</span>${(t.tags || []).filter(g => !TAG_CH.includes(g) && !TAG_TY.includes(g)).map(g => tagChip(g, true)).join("")}<input id="d-tag" placeholder="＋ タグ（Enter）" enterkeyhint="done"></div>
+        ${(() => { const fr = (t.tags || []).filter(g => !TAG_CH.includes(g) && !TAG_TY.includes(g)); return fr.length ? `<div class="grp"><span class="lbl">旧タグ</span>${fr.map(g => tagChip(g, true)).join("")}<span style="font-size:11px">（タップで削除）</span></div>` : ""; })()}
       </div>
       <div class="dcard">
         <div class="drow ${t.due ? "on" : ""}"><span class="ico">📅</span><input type="date" id="d-due" value="${esc(t.due)}" title="期限日">${t.due ? `<button class="clear" data-clear="due" title="期限を削除">×</button>` : ""}</div>
@@ -994,11 +995,6 @@ function bindDetail(t) {
     const g = c.dataset.tag; t.tags = t.tags || [];
     t.tags = sortTags(t.tags.includes(g) ? t.tags.filter(x => x !== g) : [...t.tags, g]);
     touch(t); render();
-  });
-  el.querySelector("#d-tag").addEventListener("keydown", e => {
-    if (e.key !== "Enter") return; const v = e.target.value.trim(); if (!v) return;
-    t.tags = t.tags || []; if (!t.tags.includes(v)) t.tags.push(v); t.tags = sortTags(t.tags); e.target.value = ""; touch(t); render();
-    setTimeout(() => document.getElementById("d-tag").focus(), 0);
   });
   el.querySelector("#d-delete").addEventListener("click", () => { if (confirm(`「${t.title}」を削除しますか？`)) removeTask(t.id); });
   el.querySelectorAll("[data-ai]").forEach(b => b.addEventListener("click", () => {
