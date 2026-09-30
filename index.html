@@ -406,9 +406,8 @@
         <div class="tt"><h2 id="list-title"></h2><div class="date" id="list-date"></div></div>
         <div class="menu-wrap"><button class="ibtn" id="sort-btn" type="button" title="並べ替え">⇅ <span id="sort-lbl"></span></button>
           <div class="popover" id="sort-pop" hidden>
-            <button data-sort="priority" type="button">優先度</button>
-            <button data-sort="due" type="button">期限</button>
-            <button data-sort="created" type="button">追加日</button>
+            <button data-sort="priority" type="button">優先度（同じなら期限が近い順）</button>
+            <button data-sort="due" type="button">期限（同じなら優先度が高い順）</button>
             <div style="height:1px;background:var(--grid);margin:4px 0"></div>
             <button data-dir="desc" type="button">降順 ↓</button>
             <button data-dir="asc" type="button">昇順 ↑</button>
@@ -456,6 +455,7 @@ const KEY = "shiden_tasks_v1", DEL_KEY = "shiden_tasks_deleted_v1", CFG_KEY = "s
 
 /* ---- バージョンと更新履歴（公開版が反映されているかの確認用。変更のたびに先頭へ追記する） ---- */
 const CHANGELOG = [
+  ["2026-09-30.77", "並べ替え: 優先度⇄期限を主副で組み合わせ。「追加日」は廃止"],
   ["2026-09-30.76", "種別タグの先頭に「確認」を追加"],
   ["2026-09-30.75", "区分に「石油部会 執行部」を追加（通常タスクと同じ扱い）"],
   ["2026-09-30.74", "詳細を閉じるボタンを右上の × に移動"],
@@ -550,14 +550,16 @@ let tagFilter = null; // 一覧のタグ絞り込み（null=すべて）
 const SORT_KEY = "shiden_tasks_sort";
 let sortCfg = (() => { try { return Object.assign({ key: "priority", dir: "desc" }, JSON.parse(localStorage.getItem(SORT_KEY)) || {}); } catch (e) { return { key: "priority", dir: "desc" }; } })();
 // dir: "desc"＝各項目の「上に来てほしい順」（優先度=高い順／期限=近い順／追加日=新しい順）、"asc"＝その逆
-const SORT_LBL = { priority: "優先度", due: "期限", created: "追加日" };
-const DIR_LBL = { priority: ["高い順", "低い順"], due: ["近い順", "遠い順"], created: ["新しい順", "古い順"] };
+const SORT_LBL = { priority: "優先度", due: "期限" };
+const DIR_LBL = { priority: ["高い順", "低い順"], due: ["近い順", "遠い順"] };
+if (!SORT_LBL[sortCfg.key]) sortCfg.key = "priority"; // 旧「追加日」設定は優先度へ
 function sortOpen(list) {
   const dir = sortCfg.dir === "asc" ? 1 : -1;
   const cmp = {
+    // 主: 優先度、副: 期限が近い順（期限なしは後ろ）、最後に追加が新しい順
     priority: (a, b) => ((a.priority || 0) - (b.priority || 0)) * dir || (a.due || "9").localeCompare(b.due || "9") || b.ct - a.ct,
-    due: (a, b) => { const x = a.due || "", y = b.due || ""; if (!x && !y) return b.ct - a.ct; if (!x) return 1; if (!y) return -1; return x.localeCompare(y) * -dir || ((b.priority || 0) - (a.priority || 0)); }, // 「近い順」（desc）で日付の早いものが上。期限なしは常に末尾
-    created: (a, b) => (b.ct - a.ct) * -dir, // 「新しい順」（desc）で追加が新しいものが上
+    // 主: 期限（近い順が既定。期限なしは常に末尾）、副: 優先度が高い順、最後に追加が新しい順
+    due: (a, b) => { const x = a.due || "", y = b.due || ""; if (!x && !y) return ((b.priority || 0) - (a.priority || 0)) || b.ct - a.ct; if (!x) return 1; if (!y) return -1; return x.localeCompare(y) * -dir || ((b.priority || 0) - (a.priority || 0)) || b.ct - a.ct; },
   }[sortCfg.key];
   return list.sort(cmp);
 }
