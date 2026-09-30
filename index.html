@@ -497,6 +497,7 @@ const KEY = "shiden_tasks_v1", DEL_KEY = "shiden_tasks_deleted_v1", CFG_KEY = "s
 
 /* ---- バージョンと更新履歴（公開版が反映されているかの確認用。変更のたびに先頭へ追記する） ---- */
 const CHANGELOG = [
+  ["2026-09-30.98", "「完了」セクションは既定で閉じる"],
   ["2026-09-30.97", "重要度バーに「重要度 3」のラベルを添える（詳細では「重要」「最重要」などの言葉も）"],
   ["2026-09-30.96", "表記を「優先度」から「重要度」に統一"],
   ["2026-09-30.95", "一覧の優先度バーは表示のみに（行タップで詳細を開いて変更）"],
@@ -696,7 +697,7 @@ function migrateTags() { let ch = false; db.tasks.forEach(t => {
 migrateTags();
 let view = "all";             // 表示中のリスト（スマート or リストid）
 let selectedId = null;        // 詳細表示中のタスク
-let doneOpen = true;          // 「完了」セクションの開閉
+let doneOpen = false;         // 「完了」セクションの開閉（既定は閉じる）
 
 function touch(t) { t.mt = now(); save(db); scheduleSync(); }
 function task(id) { return db.tasks.find(t => t.id === id); }
