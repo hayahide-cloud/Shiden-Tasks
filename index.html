@@ -428,6 +428,7 @@ const KEY = "shiden_tasks_v1", DEL_KEY = "shiden_tasks_deleted_v1", CFG_KEY = "s
 
 /* ---- バージョンと更新履歴（公開版が反映されているかの確認用。変更のたびに先頭へ追記する） ---- */
 const CHANGELOG = [
+  ["2026-09-30.55", "タスク追加後に詳細を開く（タグ・優先度・期限をすぐ付けられる）"],
   ["2026-09-30.54", "期限に「期限なし」を選べるように（選ぶと不完全扱いにならない）"],
   ["2026-09-30.53", "期限未設定も「不完全」に含める"],
   ["2026-09-30.52", "「優先」「今後の予定」のスマートリストを廃止（並べ替えで代替）"],
@@ -946,7 +947,7 @@ function submitAdd() {
   const t = addTask(v, null, { due: dueIn.value, remind: remIn.value }); input.value = "";
   dueIn.value = ""; remIn.value = ""; renderAddTools();
   // 追加時は詳細を開かず一覧に足すだけ（PC・スマホ共通）。AIの問い返しは裏で走り、行に「⚡ 回答待ち」が付く
-  if (!isMobile()) input.focus(); // PCは続けて入力できるようフォーカスを戻す
+  selectedId = t.id; // 追加直後に詳細を開き、タグ・優先度・期限をその場で付けられるようにする
   render();
   // AI補助は自動では起動しない。タグ付け等を済ませてから詳細の「AIに相談する」で発動する
 }
