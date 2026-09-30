@@ -456,6 +456,7 @@ const KEY = "shiden_tasks_v1", DEL_KEY = "shiden_tasks_deleted_v1", CFG_KEY = "s
 
 /* ---- バージョンと更新履歴（公開版が反映されているかの確認用。変更のたびに先頭へ追記する） ---- */
 const CHANGELOG = [
+  ["2026-09-30.75", "区分に「石油部会 執行部」を追加（通常タスクと同じ扱い）"],
   ["2026-09-30.74", "詳細を閉じるボタンを右上の × に移動"],
   ["2026-09-30.73", "プライベートのタスクは既定表示では隠し、フィルタを掛けたときだけ表示"],
   ["2026-09-30.72", "プライベートはツール未設定でも不完全にしない（種別は必要）"],
@@ -539,7 +540,7 @@ const SMART_ICO = { all: "🏠" };
 function prioBars(v, lg) { return `<span class="prio ${lg ? "lg" : ""}" data-act="prio" data-v="${v || 0}" title="優先度 ${v || 0}/5（バーをクリックで設定）">${[1, 2, 3, 4, 5].map(p => `<i data-p="${p}"></i>`).join("")}</span>`; }
 const TAG_CH = ["Teams", "Outlook", "LINE", "電話", "Excel", "Word", "PP", "Web", "その他ツール"];  // どこの案件か／何で作るか（PP＝PowerPoint）
 const TAG_TY = ["対応", "返信", "新規文章作成", "成果物作成", "手配", "購入", "調査", "検討", "その他種別"];  // 表示順
-const TAG_EX = ["プライベート"];  // 第3グループ（桃色）。仕事以外の区分。不完全判定には関係しない  // どんな仕事か（対応＝アンケート回答・申請など、考えずにサッと片付ける軽い作業）
+const TAG_EX = ["石油部会 執行部", "プライベート"];  // 第3グループ（桃色）。区分。プライベートだけ特別扱い（既定非表示・ツール/優先度不要・期限なし既定）  // どんな仕事か（対応＝アンケート回答・申請など、考えずにサッと片付ける軽い作業）
 const TAG_RENAME = { "実施": "対応", "文章": "新規文章作成", "文章作成": "新規文章作成", "作成": "成果物作成" }; // 旧名称の移行（読み込み時に置換）
 function tagClass(tag) { return TAG_CH.includes(tag) ? "ch" : TAG_TY.includes(tag) ? "ty" : TAG_EX.includes(tag) ? "ex" : "fr"; }
 function tagChip(tag, on) { return `<span class="tag ${tagClass(tag)} ${on ? "on" : ""}" data-tag="${esc(tag)}">${esc(tag)}</span>`; }
