@@ -122,7 +122,9 @@
   .task .title { font-size: 14px; overflow-wrap: anywhere; }
   .task .meta { display: flex; gap: 6px; flex-wrap: wrap; font-size: 12px; color: var(--muted); margin-top: 1px; }
   .task .meta span + span::before { content: "•"; margin-right: 6px; opacity: .6; }
-  .task .meta .over { color: var(--bad); }
+  .task .meta .over { color: var(--bad); font-weight: 600; }
+  .task.overdue .title { color: var(--bad); }
+  .drow.overdue input[type=date] { color: var(--bad); font-weight: 600; }
   .task .meta .today { color: var(--accent-hi); }
   .task .meta .aim { color: var(--accent-hi); }
   /* タグ（チャネル＝青系／種別＝緑系／自由＝灰） */
@@ -437,6 +439,7 @@ const KEY = "shiden_tasks_v1", DEL_KEY = "shiden_tasks_deleted_v1", CFG_KEY = "s
 
 /* ---- バージョンと更新履歴（公開版が反映されているかの確認用。変更のたびに先頭へ追記する） ---- */
 const CHANGELOG = [
+  ["2026-09-30.59", "期限超過のタスクを赤字で表示し「不完全」に含める（期限を再設定するまで）"],
   ["2026-09-30.58", "「期限なし」をクイックボタンの並びに移動"],
   ["2026-09-30.57", "削除の確認を画面中央のアプリ内ダイアログに変更"],
   ["2026-09-30.56", "期限のクイック設定ボタン（今日／明日／週明け月曜）を詳細に追加"],
@@ -523,7 +526,8 @@ function sortOpen(list) {
 }
 // 表示順は常に ツール（青）→ 種別（緑）→ 自由タグ。付けた順序に依存させない
 // ツール（青）・種別（緑）・優先度・期限のどれかが未設定なら「不完全」
-function tagIncomplete(t) { const g = t.tags || []; return !g.some(x => TAG_CH.includes(x)) || !g.some(x => TAG_TY.includes(x)) || !(t.priority > 0) || !(t.due || t.noDue); }
+function isOverdue(t) { return !!t.due && !t.done && t.due < todayStr(); } // 期限超過（再設定するまで赤字・不完全）
+function tagIncomplete(t) { const g = t.tags || []; return !g.some(x => TAG_CH.includes(x)) || !g.some(x => TAG_TY.includes(x)) || !(t.priority > 0) || !(t.due || t.noDue) || isOverdue(t); }
 const INCOMPLETE = "__incomplete"; // フィルタの特別値
 function sortTags(tags) {
   const rank = g => TAG_CH.includes(g) ? TAG_CH.indexOf(g) : TAG_TY.includes(g) ? 100 + TAG_TY.indexOf(g) : 200;
@@ -630,7 +634,7 @@ function renderList() {
   const chipOf = g => tagChip(g, tagFilter === g).replace('class="tag', `class="tag ${counts[g] ? "" : "zero"}`);
   const free = tagsHere.filter(g => !TAG_CH.includes(g) && !TAG_TY.includes(g));
   const nInc = all.filter(t => !t.done && tagIncomplete(t)).length;
-  const incChip = `<span class="tag warn ${tagFilter === INCOMPLETE ? "on" : ""} ${nInc ? "" : "zero"}" data-tag="${INCOMPLETE}" title="ツール・種別・優先度・期限（または期限なし）のどれかが未設定のタスク">⚠ 不完全${nInc ? " " + nInc : ""}</span><span class="sep"></span>`;
+  const incChip = `<span class="tag warn ${tagFilter === INCOMPLETE ? "on" : ""} ${nInc ? "" : "zero"}" data-tag="${INCOMPLETE}" title="ツール・種別・優先度・期限のどれかが未設定、または期限超過のタスク">⚠ 不完全${nInc ? " " + nInc : ""}</span><span class="sep"></span>`;
   document.getElementById("tagbar").innerHTML = incChip + TAG_CH.map(chipOf).join("") + `<span class="sep"></span>` + TAG_TY.map(chipOf).join("") + (free.length ? `<span class="sep"></span>` + free.map(chipOf).join("") : "") + (tagFilter ? `<button class="clear" data-tag="">× 絞り込み解除</button>` : "");
   const ts = tagFilter === INCOMPLETE ? all.filter(tagIncomplete) : tagFilter ? all.filter(t => (t.tags || []).includes(tagFilter)) : all;
   const open = sortOpen(ts.filter(t => !t.done));
@@ -649,10 +653,10 @@ function renderList() {
     if (t.steps.length) { const nx = t.steps.find(x => !x.done); meta.push(`<span>${t.steps.filter(s => s.done).length}/${t.steps.length}${nx && !t.done ? " → " + esc(nx.title) : ""}</span>`); }
     if (t.note) meta.push(`<span>📝</span>`);
     sortTags(t.tags).forEach(g => meta.push(tagChip(g)));
-    if (!t.done && tagIncomplete(t)) meta.push(`<span class="tag warn" title="ツール・種別・優先度・期限を設定してください">⚠</span>`);
+    if (!t.done && tagIncomplete(t)) meta.push(`<span class="tag warn" title="ツール・種別・優先度・期限を設定してください（期限超過も含む）">⚠</span>`);
     if (t.ai && t.ai.draft) meta.push(`<span class="aim">⚡ 下書きあり</span>`);
     else if (t.ai && t.ai.questions && !t.ai.draft) meta.push(`<span class="aim">⚡ 回答待ち</span>`);
-    return `<li class="task ${t.done ? "done" : ""} ${selectedId === t.id ? "sel" : ""}" data-id="${t.id}">
+    return `<li class="task ${t.done ? "done" : ""} ${selectedId === t.id ? "sel" : ""} ${isOverdue(t) ? "overdue" : ""}" data-id="${t.id}">
       <span class="chk" data-act="toggle" title="${t.done ? "未完了に戻す" : "完了にする"}">${t.done ? "✓" : ""}</span>
       <div class="body"><div class="title">${esc(t.title)}</div>${meta.length ? `<div class="meta">${meta.join("")}</div>` : ""}</div>
       ${prioBars(t.priority)}
@@ -692,7 +696,7 @@ function renderDetail() {
         ${(() => { const fr = (t.tags || []).filter(g => !TAG_CH.includes(g) && !TAG_TY.includes(g)); return fr.length ? `<div class="grp"><span class="lbl">旧タグ</span>${fr.map(g => tagChip(g, true)).join("")}<span style="font-size:11px">（タップで削除）</span></div>` : ""; })()}
       </div>
       <div class="dcard">
-        <div class="drow ${t.due || t.noDue ? "on" : ""}"><span class="ico">📅</span><input type="date" id="d-due" value="${esc(t.due)}" title="期限日">${t.due ? `<button class="clear" data-clear="due" title="期限を削除">×</button>` : ""}</div>
+        <div class="drow ${t.due || t.noDue ? "on" : ""} ${isOverdue(t) ? "overdue" : ""}"><span class="ico">📅</span><input type="date" id="d-due" value="${esc(t.due)}" title="期限日">${t.due ? `<button class="clear" data-clear="due" title="期限を削除">×</button>` : ""}</div>
         <div class="quick">${[["今日", todayStr()], ["明日", addDays(1)], ["週明け月曜", nextMonday()]].map(([l, v]) => `<button class="qb ${t.due === v ? "on" : ""}" data-quick="${v}">${l}</button>`).join("")}<button class="qb ${t.noDue ? "on" : ""}" id="d-nodue" title="期限を設けないタスク">期限なし</button></div>
         <div class="drow ${t.remind ? "on" : ""}"><span class="ico">⏰</span><input type="datetime-local" id="d-remind" value="${esc(t.remind)}" title="通知（アプリを開いているときに知らせます）">${t.remind ? `<button class="clear" data-clear="remind" title="通知を削除">×</button>` : ""}</div>
         <div class="drow"><span class="ico">☰</span><select id="d-list" title="リスト"><option value="">タスク</option>${db.lists.map(l => `<option value="${l.id}" ${t.listId === l.id ? "selected" : ""}>${esc(l.name)}</option>`).join("")}</select></div>
