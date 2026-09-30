@@ -44,7 +44,6 @@
   .brand .g { background: linear-gradient(90deg, #a78bfa, #7c3aed); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
   .gh-status { font-size: 12px; color: var(--muted); margin-left: 8px; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .ibtn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 32px; min-width: 32px; padding: 0 10px; border-radius: 6px; border: none; background: transparent; color: var(--ink-2); font-size: 13px; cursor: pointer; }
-  .ibtn:hover { background: var(--surface-3); color: #fff; }
 
   /* ---- 設定パネル（アプリバー直下に展開） ---- */
   /* 設定ページ（全画面。アプリの上に重ねる。スマホは右からスライド） */
@@ -69,9 +68,7 @@
   .changelog .v { flex: none; color: var(--accent-hi); font-variant-numeric: tabular-nums; width: 118px; }
   .changelog li.cur .v::after { content: " ●"; color: var(--good); }
   .btn { font-size: 13.5px; font-weight: 600; cursor: pointer; color: #fff; border: none; border-radius: 6px; padding: 9px 16px; background: var(--accent-deep); }
-  .btn:hover { background: var(--accent); }
   .linkbtn { font-size: 13px; cursor: pointer; color: var(--ink-2); background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; padding: 7px 12px; }
-  .linkbtn:hover { color: #fff; background: var(--surface-3); }
   .linkbtn.danger { color: var(--muted); background: transparent; }
 
   /* ---- 3ペイン ---- */
@@ -82,7 +79,6 @@
   .side { background: var(--surface); border-right: 1px solid var(--grid); display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
   .nav { list-style: none; flex: 1; overflow: auto; padding: 8px 6px; }
   .nav li { display: flex; align-items: center; gap: 12px; padding: 9px 12px; border-radius: 4px; cursor: pointer; color: var(--ink); font-size: 14px; position: relative; }
-  .nav li:hover { background: var(--surface-2); }
   .nav li.active { background: var(--surface-3); }
   .nav li.active::before { content: ""; position: absolute; left: 0; top: 10px; bottom: 10px; width: 3px; border-radius: 2px; background: var(--accent); }
   .nav li .ico { width: 20px; text-align: center; flex: none; font-size: 15px; }
@@ -91,7 +87,6 @@
   .nav .sep { height: 1px; background: var(--grid); margin: 8px 8px; }
   .newlist-wrap { flex: none; border-top: 1px solid var(--grid); padding: 6px; }
   .newlist-btn { width: 100%; display: flex; align-items: center; gap: 12px; padding: 9px 12px; border: none; background: transparent; color: var(--accent-hi); font-size: 14px; cursor: pointer; border-radius: 4px; text-align: left; }
-  .newlist-btn:hover { background: var(--surface-2); }
   .newlist { display: none; gap: 6px; padding: 4px 6px 6px; }
   .side.open .newlist { display: flex; }
   .side.open .newlist-btn { display: none; }
@@ -108,19 +103,14 @@
   .menu-wrap { position: relative; }
   .popover { position: absolute; right: 0; top: 36px; z-index: 20; background: var(--surface-2); border: 1px solid var(--grid); border-radius: 6px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); min-width: 170px; padding: 4px; }
   .popover button { display: block; width: 100%; text-align: left; padding: 9px 12px; background: transparent; border: none; color: var(--ink); font-size: 13.5px; border-radius: 4px; cursor: pointer; }
-  .popover button:hover { background: var(--surface-3); }
   .popover button.danger { color: var(--bad); }
   .tasks-scroll { flex: 1; min-height: 0; overflow: auto; padding: 0 28px 92px; }
   .tasks { list-style: none; display: flex; flex-direction: column; gap: 2px; }
   .task { display: flex; align-items: center; gap: 14px; background: var(--row); border-radius: 4px; padding: 0 14px; min-height: 52px; cursor: pointer; border: 1px solid transparent; }
-  .task:hover { background: var(--row-hover); }
   .task.sel { background: var(--surface-3); border-color: rgba(168,120,255,0.35); }
   .task.done .title { text-decoration: line-through; color: var(--muted); }
   .chk { width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid var(--ink-2); flex: none; display: grid; place-items: center; font-size: 11px; color: #fff; cursor: pointer; }
-  .chk:hover { border-color: var(--accent-hi); }
-  .chk:hover::after { content: "✓"; color: var(--accent-hi); }
   .task.done .chk, .chk.on { background: var(--accent-deep); border-color: var(--accent-deep); }
-  .task.done .chk:hover::after, .chk.on:hover::after { content: ""; }
   .task .body { flex: 1; min-width: 0; padding: 8px 0; }
   .task .title { font-size: 14px; overflow-wrap: anywhere; }
   .task .meta { display: flex; gap: 6px; flex-wrap: wrap; font-size: 12px; color: var(--muted); margin-top: 1px; }
@@ -129,12 +119,10 @@
   .task .meta .today { color: var(--accent-hi); }
   .task .meta .aim { color: var(--accent-hi); }
   .star { flex: none; font-size: 17px; color: var(--muted); background: none; border: none; cursor: pointer; padding: 6px; border-radius: 4px; }
-  .star:hover { color: var(--accent-hi); }
   .star.on { color: var(--accent-hi); }
   .empty { color: var(--muted); font-size: 13.5px; padding: 60px 8px; text-align: center; }
   .empty .big { font-size: 40px; margin-bottom: 10px; }
   .done-head { display: flex; align-items: center; gap: 8px; margin: 14px 0 6px; font-size: 13px; color: var(--ink-2); cursor: pointer; user-select: none; padding: 6px 4px; border-radius: 4px; width: fit-content; }
-  .done-head:hover { background: var(--surface-2); }
   .done-head .chev { display: inline-block; transition: transform .15s; font-size: 11px; }
   .done-head.closed .chev { transform: rotate(-90deg); }
 
@@ -162,19 +150,16 @@
   .steps li.done span.t { text-decoration: line-through; color: var(--muted); }
   .steps .chk { width: 16px; height: 16px; font-size: 9px; }
   .steps .rm { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 16px; padding: 4px; }
-  .steps .rm:hover { color: var(--bad); }
   .stepadd { display: flex; align-items: center; gap: 12px; padding: 0 14px; min-height: 42px; }
   .stepadd .plus { color: var(--accent-hi); font-size: 18px; width: 16px; text-align: center; }
   .stepadd input { flex: 1; min-width: 0; font-size: 13.5px; background: transparent; border: none; color: var(--ink); outline: none; }
   .stepadd input::placeholder { color: var(--accent-hi); }
   .drow { display: flex; align-items: center; gap: 12px; padding: 0 14px; min-height: 46px; border-bottom: 1px solid var(--grid); font-size: 13.5px; color: var(--ink-2); cursor: pointer; }
   .drow:last-child { border-bottom: none; }
-  .drow:hover { color: #fff; }
   .drow .ico { width: 18px; text-align: center; color: var(--ink-2); flex: none; }
   .drow .lbl { flex: 1; min-width: 0; }
   .drow.on .lbl, .drow.on .ico { color: var(--accent-hi); }
   .drow .clear { background: none; border: none; color: var(--muted); font-size: 16px; cursor: pointer; padding: 4px; }
-  .drow .clear:hover { color: var(--bad); }
   .drow input[type=date] { flex: 1; font-size: 13.5px; background: transparent; color: var(--ink); border: none; outline: none; color-scheme: dark; }
   .drow select { flex: 1; font-size: 13.5px; background: transparent; color: var(--ink); border: none; outline: none; }
   .drow select option { background: var(--surface-2); }
@@ -183,7 +168,6 @@
   .dnote textarea::placeholder { color: var(--ink-2); }
   .dfoot { flex: none; display: flex; align-items: center; justify-content: space-between; padding: 8px 10px; padding-bottom: max(8px, env(safe-area-inset-bottom)); border-top: 1px solid var(--grid); font-size: 12px; color: var(--muted); }
   .dfoot .ibtn { font-size: 16px; }
-  .dfoot .ibtn.del:hover { color: var(--bad); }
 
   /* ---- AI補助（詳細ペイン内） ---- */
   .ai { margin-bottom: 8px; border: 1px solid rgba(168,120,255,0.3); border-radius: 4px; padding: 12px 14px; background: linear-gradient(180deg, rgba(124,58,237,0.12), rgba(124,58,237,0.03)); }
@@ -206,6 +190,27 @@
   .spin { display: inline-block; width: 12px; height: 12px; border: 2px solid var(--muted); border-top-color: var(--accent-hi); border-radius: 50%; animation: sp 1s linear infinite; vertical-align: -2px; margin-right: 6px; }
   @keyframes sp { to { transform: rotate(360deg); } }
 
+
+  /* hover はマウス環境のみ（タッチ端末では触れた状態が残って「選択したように」見えるため） */
+  @media (hover: hover) {
+    .ibtn:hover { background: var(--surface-3); color: #fff; }
+    .btn:hover { background: var(--accent); }
+    .linkbtn:hover { color: #fff; background: var(--surface-3); }
+    .nav li:hover { background: var(--surface-2); }
+    .newlist-btn:hover { background: var(--surface-2); }
+    .popover button:hover { background: var(--surface-3); }
+    .task:hover { background: var(--row-hover); }
+    .chk:hover { border-color: var(--accent-hi); }
+    .chk:hover::after { content: "✓"; color: var(--accent-hi); }
+    .task.done .chk:hover::after, .chk.on:hover::after { content: ""; }
+    .star:hover { color: var(--accent-hi); }
+    .done-head:hover { background: var(--surface-2); }
+    .steps .rm:hover { color: var(--bad); }
+    .drow:hover { color: #fff; }
+    .drow .clear:hover { color: var(--bad); }
+    .dfoot .ibtn.del:hover { color: var(--bad); }
+  }
+
   /* ---- スマホ（MS To Do モバイル同様: リスト一覧画面 → リスト画面 → 詳細） ---- */
   @media (max-width: 900px) {
     /* 画面遷移: リスト一覧の上に、タスク一覧・詳細が右からスライドして重なる（MS To Do アプリと同じ動き） */
@@ -221,7 +226,8 @@
     .listhead .back { display: inline-flex; font-size: 22px; }
     .listhead h2 { font-size: 21px; }
     .tasks-scroll { padding: 0 12px 90px; }
-    .task { min-height: 56px; gap: 12px; }
+    .task { min-height: 56px; gap: 12px; -webkit-touch-callout: none; user-select: none; }
+    .nav li { -webkit-touch-callout: none; user-select: none; }
     /* ○のタップ判定を広げる: 見た目は22pxのまま、透明な当たり判定を上下左右14px分足す（約50px四方） */
     .chk { width: 22px; height: 22px; position: relative; }
     .chk::before { content: ""; position: absolute; inset: -14px; }
@@ -328,6 +334,7 @@ const KEY = "shiden_tasks_v1", DEL_KEY = "shiden_tasks_deleted_v1", CFG_KEY = "s
 
 /* ---- バージョンと更新履歴（公開版が反映されているかの確認用。変更のたびに先頭へ追記する） ---- */
 const CHANGELOG = [
+  ["2026-09-30.16", "スマホ: タスクに触れたときの選択風ハイライトを廃止"],
   ["2026-09-30.15", "スマホ: 完了○のタップ判定を拡大（約50px四方）"],
   ["2026-09-30.14", "スマホも: タスク追加時に詳細を開かない"],
   ["2026-09-30.13", "PC: タスク追加時に詳細を開かず、続けて入力できるように"],
