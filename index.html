@@ -54,6 +54,12 @@
   .cfg input:focus, .cfg select:focus { outline: none; border-color: var(--accent); }
   .cfg-actions { display: flex; align-items: center; gap: 12px; margin-top: 12px; flex-wrap: wrap; }
   .hint { font-size: 11.5px; color: var(--muted); margin-top: 6px; }
+  .ver { font-size: 11px; color: var(--muted); margin-left: 6px; white-space: nowrap; }
+  .changelog { margin-top: 6px; font-size: 12.5px; color: var(--ink-2); }
+  .changelog li { display: flex; gap: 10px; padding: 4px 0; border-bottom: 1px solid var(--grid); }
+  .changelog li:last-child { border-bottom: none; }
+  .changelog .v { flex: none; color: var(--accent-hi); font-variant-numeric: tabular-nums; width: 118px; }
+  .changelog li.cur .v::after { content: " ●"; color: var(--good); }
   .btn { font-size: 13.5px; font-weight: 600; cursor: pointer; color: #fff; border: none; border-radius: 6px; padding: 9px 16px; background: var(--accent-deep); }
   .btn:hover { background: var(--accent); }
   .linkbtn { font-size: 13px; cursor: pointer; color: var(--ink-2); background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; padding: 7px 12px; }
@@ -227,7 +233,7 @@
     </svg><span class="txt"><span class="g">Shiden</span> Tasks</span></span>
     <span id="gh-status" class="gh-status"></span>
     <button class="ibtn" id="gh-sync" type="button" title="同期">🔄<span class="txt-pc"> 同期</span></button>
-    <button class="ibtn" id="gh-config" type="button" title="設定">⚙️<span class="txt-pc"> 設定</span></button>
+    <button class="ibtn" id="gh-config" type="button" title="設定">⚙️<span class="txt-pc"> 設定</span></button><span class="ver" id="ver"></span>
   </div>
 
   <!-- 設定（GitHub同期・OpenAI API） -->
@@ -255,6 +261,8 @@
       <button class="btn" id="cfg-save" type="button">保存して同期</button>
       <button class="linkbtn danger" id="cfg-clear" type="button">この端末の設定を削除</button>
     </div>
+    <label>■ 更新履歴 — 表示中のページのバージョン（●）。公開後に古い画面が出る場合はブラウザのキャッシュなので再読み込みしてください。</label>
+    <ul class="changelog" id="changelog"></ul>
   </div>
 
   <div class="app" id="app">
@@ -294,6 +302,20 @@
    lists: [{id,name,ct,mt}]   deleted: [id...]（墓標。端末間で削除を伝播）
    ================================================================ */
 const KEY = "shiden_tasks_v1", DEL_KEY = "shiden_tasks_deleted_v1", CFG_KEY = "shiden_tasks_cfg";
+
+/* ---- バージョンと更新履歴（公開版が反映されているかの確認用。変更のたびに先頭へ追記する） ---- */
+const CHANGELOG = [
+  ["2026-09-30.7", "設定に更新履歴とバージョン表示を追加"],
+  ["2026-09-30.6", "スマホの画面遷移をスライドアニメーションに"],
+  ["2026-09-30.5", "UIを Microsoft To Do 準拠に再構成（3ペイン・完了折りたたみ・詳細ペイン下部バー）"],
+  ["2026-09-30.4", "AI補助を OpenAI API（gpt-5-mini）に切替"],
+  ["2026-09-30.3", "スマホ画面対応（チップ列・下部固定の追加欄）"],
+  ["2026-09-30.2", "スマートリストで「リスト削除」が出るバグ修正"],
+  ["2026-09-30.1", "Shiden-Tasks 公開（Phase 1）"],
+];
+const VERSION = CHANGELOG[0][0];
+document.getElementById("ver").textContent = "v" + VERSION;
+document.getElementById("changelog").innerHTML = CHANGELOG.map(([v, m], i) => `<li class="${i === 0 ? "cur" : ""}"><span class="v">${v}</span><span>${m}</span></li>`).join("");
 const SMART = { myday: "今日の予定", important: "重要", planned: "今後の予定", all: "タスク" };
 const SMART_ICO = { myday: "☀️", important: "⭐", planned: "📅", all: "🏠" };
 
