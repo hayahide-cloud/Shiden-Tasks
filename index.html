@@ -430,6 +430,7 @@
               <button type="button" data-due="pick">📅 カレンダーで選ぶ…</button>
               <input type="date" id="add-due-in" tabindex="-1" style="position:absolute;opacity:0;width:1px;height:1px;left:0;bottom:0;pointer-events:none">
             </div></span>
+          <button class="tool" id="add-private" type="button" title="プライベートのタスクとして追加">🔒</button>
           <button class="tool" id="add-remind" type="button" title="通知（アプリを開いているときに知らせます）"><span id="add-remind-lbl">⏰</span><input type="datetime-local" id="add-remind-in" tabindex="-1"></button>
         </span>
         <button class="go" id="add-go" type="button">追加</button></div>
@@ -452,6 +453,7 @@ const KEY = "shiden_tasks_v1", DEL_KEY = "shiden_tasks_deleted_v1", CFG_KEY = "s
 
 /* ---- バージョンと更新履歴（公開版が反映されているかの確認用。変更のたびに先頭へ追記する） ---- */
 const CHANGELOG = [
+  ["2026-09-30.68", "追加バーに 🔒（プライベート）ボタン"],
   ["2026-09-30.67", "「プライベート」タグ（第3グループ・桃色）を追加"],
   ["2026-09-30.66", "ツールタグに「電話」を追加"],
   ["2026-09-30.65", "リスト分けを廃止（サイドバーは「タスク」のみ、スマホは最初からタスク一覧）"],
@@ -987,8 +989,8 @@ function submitAdd() {
   const input = document.getElementById("add-input");
   const v = input.value.trim(); if (!v) return;
   const dueIn = document.getElementById("add-due-in"), remIn = document.getElementById("add-remind-in");
-  const t = addTask(v, null, { due: dueIn.value, remind: remIn.value }); if (addNoDue && !dueIn.value) t.noDue = true; input.value = "";
-  dueIn.value = ""; remIn.value = ""; addNoDue = false; renderAddTools();
+  const t = addTask(v, null, { due: dueIn.value, remind: remIn.value }); if (addNoDue && !dueIn.value) t.noDue = true; if (addPrivate) t.tags = ["プライベート"]; input.value = "";
+  dueIn.value = ""; remIn.value = ""; addNoDue = false; addPrivate = false; renderAddTools();
   // 追加時は詳細を開かず一覧に足すだけ（PC・スマホ共通）。AIの問い返しは裏で走り、行に「⚡ 回答待ち」が付く
   if (!isMobile()) selectedId = t.id; // PCのみ: 追加直後に詳細を開き、タグ・優先度・期限をその場で付ける。スマホは一覧のまま
   render();
@@ -998,11 +1000,13 @@ document.getElementById("add-input").addEventListener("keydown", e => { if (e.ke
 document.getElementById("add-go").addEventListener("click", submitAdd);
 // 追加バーの 📅 / ⏰: 選択済みなら日付を表示し、× で解除
 let addNoDue = false; // 追加バーで「期限なし」を選んだ状態
+let addPrivate = false; // 追加バーで 🔒 を点灯した状態（プライベートタグを付けて追加）
 function renderAddTools() {
   const due = document.getElementById("add-due-in").value, rem = document.getElementById("add-remind-in").value;
   if (due) addNoDue = false;
   const dl = document.getElementById("add-due-lbl"), rl = document.getElementById("add-remind-lbl");
-  document.getElementById("add-due").classList.toggle("on", !!due || addNoDue); document.getElementById("add-remind").classList.toggle("on", !!rem);
+  document.getElementById("add-due").classList.toggle("on", !!due || addNoDue);
+  const pb = document.getElementById("add-private"); pb.classList.toggle("on", addPrivate); pb.textContent = addPrivate ? "🔒 プライベート" : "🔒"; document.getElementById("add-remind").classList.toggle("on", !!rem);
   dl.innerHTML = due ? `📅 ${fmtDue(due)}<span class="x" data-x="due">×</span>` : addNoDue ? `📅 期限なし<span class="x" data-x="due">×</span>` : "📅";
   rl.innerHTML = rem ? `⏰ ${fmtRemind(rem)}<span class="x" data-x="remind">×</span>` : "⏰";
 }
@@ -1018,6 +1022,7 @@ document.querySelector(".add .tools").addEventListener("click", e => {
     document.getElementById("due-pop").hidden = true; renderAddTools(); return;
   }
   const btn = e.target.closest(".tool"); if (!btn) return;
+  if (btn.id === "add-private") { addPrivate = !addPrivate; renderAddTools(); return; }
   if (btn.id === "add-due") { e.stopPropagation(); const p = document.getElementById("due-pop"); p.hidden = !p.hidden; return; }
   const inp = btn.querySelector("input");
   try { if (inp.showPicker) inp.showPicker(); else inp.focus(); } catch (err) { inp.focus(); }
