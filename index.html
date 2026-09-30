@@ -306,7 +306,7 @@
     .nav li { padding: 12px 12px; font-size: 15px; }
     .newlist input { font-size: 16px; }
     .listhead { padding: 12px 14px 8px; align-items: center; }
-    .listhead .back { display: inline-flex; font-size: 22px; }
+    .listhead .back { display: none; } /* リスト一覧画面は廃止 */
     .listhead h2 { font-size: 21px; }
     .tasks-scroll { padding: 0 12px 8px; }
     .task { min-height: 56px; gap: 12px; -webkit-touch-callout: none; user-select: none; }
@@ -389,7 +389,7 @@
     <aside class="side" id="side">
       <div class="ptr" id="ptr-side"></div>
       <ul class="nav" id="nav"></ul>
-      <div class="newlist-wrap">
+      <div class="newlist-wrap" hidden>
         <button class="newlist-btn" id="side-toggle" type="button"><span>＋</span>新しいリスト</button>
         <div class="newlist"><input id="newlist" placeholder="リスト名" enterkeyhint="done"><button class="linkbtn" id="newlist-add" type="button">作成</button></div>
       </div>
@@ -451,6 +451,7 @@ const KEY = "shiden_tasks_v1", DEL_KEY = "shiden_tasks_deleted_v1", CFG_KEY = "s
 
 /* ---- バージョンと更新履歴（公開版が反映されているかの確認用。変更のたびに先頭へ追記する） ---- */
 const CHANGELOG = [
+  ["2026-09-30.65", "リスト分けを廃止（サイドバーは「タスク」のみ、スマホは最初からタスク一覧）"],
   ["2026-09-30.64", "種別タグに「調査」を追加（手配→調査→検討の順）"],
   ["2026-09-30.63", "追加バーの 📅 をメニュー化（今日／明日／週明け月曜／期限なし／カレンダー）"],
   ["2026-09-30.62", "並べ替えの向きを項目ごとの言葉に（優先度=高い順／期限=近い順／追加日=新しい順 が既定）"],
@@ -618,8 +619,7 @@ function removeList(id) {
 function visibleTasks() {
   const td = todayStr();
   return db.tasks.filter(t => {
-    if (view === "all") return true;
-    return t.listId === view;
+    return true; // リスト分け廃止: 常に全タスク
   });
 }
 
@@ -633,8 +633,7 @@ function renderNav() {
   const cnt = k => { const v = view; view = k; const n = visibleTasks().filter(t => !t.done).length; view = v; return n; };
   const item = (k, ico, name) => `<li class="${view === k ? "active" : ""}" data-view="${k}"><span class="ico">${ico}</span><span class="nm">${esc(name)}</span><span class="cnt">${cnt(k) || ""}</span></li>`;
   let html = Object.keys(SMART).map(k => item(k, SMART_ICO[k], SMART[k])).join("");
-  html += `<div class="sep"></div>`;
-  html += db.lists.map(l => item(l.id, "☰", l.name)).join("");
+  // リスト分けは廃止（2026-09-30）。自作リストは表示しない（データは残るが、タスクはすべて「タスク」に出る）
   document.getElementById("nav").innerHTML = html;
 }
 
@@ -642,7 +641,7 @@ function renderList() {
   const list = db.lists.find(l => l.id === view);
   document.getElementById("list-title").innerHTML = `<span>${list ? "☰" : SMART_ICO[view]}</span>${esc(SMART[view] || (list ? list.name : ""))}`;
   document.getElementById("list-date").textContent = view === "all" ? new Date().toLocaleDateString("ja-JP", { month: "long", day: "numeric", weekday: "long" }) : "";
-  document.getElementById("list-menu").hidden = !list;
+  document.getElementById("list-menu").hidden = true; // リスト分け廃止
   document.getElementById("list-pop").hidden = true;
   document.getElementById("main").classList.toggle("myday", view === "all");
   const all = visibleTasks();
@@ -668,8 +667,6 @@ function renderList() {
   const td = todayStr();
   const row = t => {
     const meta = [];
-    const ln = t.listId ? (db.lists.find(l => l.id === t.listId) || {}).name : "タスク";
-    if (SMART[view] && ln) meta.push(`<span>${esc(ln)}</span>`);
     if (t.due) meta.push(`<span class="${!t.done && t.due < td ? "over" : (t.due === td ? "today" : "")}">📅 ${fmtDue(t.due)}</span>`);
     else if (t.noDue) meta.push(`<span>📅 期限なし</span>`);
     if (t.remind && !t.done) meta.push(`<span class="${t.remindFired ? "" : "today"}">⏰ ${fmtRemind(t.remind)}</span>`);
@@ -722,7 +719,6 @@ function renderDetail() {
         <div class="drow ${t.due || t.noDue ? "on" : ""} ${isOverdue(t) ? "overdue" : ""}"><span class="ico">📅</span><input type="date" id="d-due" value="${esc(t.due)}" title="期限日">${t.due ? `<button class="clear" data-clear="due" title="期限を削除">×</button>` : ""}</div>
         <div class="quick">${[["今日", todayStr()], ["明日", addDays(1)], ["週明け月曜", nextMonday()]].map(([l, v]) => `<button class="qb ${t.due === v ? "on" : ""}" data-quick="${v}">${l}</button>`).join("")}<button class="qb ${t.noDue ? "on" : ""}" id="d-nodue" title="期限を設けないタスク">期限なし</button></div>
         <div class="drow ${t.remind ? "on" : ""}"><span class="ico">⏰</span><input type="datetime-local" id="d-remind" value="${esc(t.remind)}" title="通知（アプリを開いているときに知らせます）">${t.remind ? `<button class="clear" data-clear="remind" title="通知を削除">×</button>` : ""}</div>
-        <div class="drow"><span class="ico">☰</span><select id="d-list" title="リスト"><option value="">タスク</option>${db.lists.map(l => `<option value="${l.id}" ${t.listId === l.id ? "selected" : ""}>${esc(l.name)}</option>`).join("")}</select></div>
       </div>
       <div class="dcard dnote"><textarea id="d-note" placeholder="メモの追加">${esc(t.note)}</textarea></div>
       ${renderAi(t)}
@@ -1084,7 +1080,6 @@ function bindDetail(t) {
   const dc = el.querySelector("[data-clear=due]"); if (dc) dc.addEventListener("click", () => { t.due = ""; touch(t); render(); });
   el.querySelector("#d-remind").addEventListener("change", e => { t.remind = e.target.value; t.remindFired = false; if (t.remind) askNotifyPermission(); touch(t); render(); });
   const rc = el.querySelector("[data-clear=remind]"); if (rc) rc.addEventListener("click", () => { t.remind = ""; t.remindFired = false; touch(t); render(); });
-  el.querySelector("#d-list").addEventListener("change", e => { t.listId = e.target.value; touch(t); render(); });
   el.querySelector("#d-note").addEventListener("change", e => { t.note = e.target.value; touch(t); renderList(); });
   el.querySelector("#d-step").addEventListener("keydown", e => { if (e.key !== "Enter") return; const v = e.target.value.trim(); if (!v) return; t.steps.push({ id: newId(), title: v, done: false }); touch(t); render(); setTimeout(() => document.getElementById("d-step").focus(), 0); });
   const brk = el.querySelector("#d-brk"); if (brk) brk.addEventListener("click", () => aiBreakdown(t));
@@ -1236,7 +1231,6 @@ document.getElementById("gh-sync").addEventListener("click", sync);
     // いちばん手前に出ている画面を返す（設定 > 詳細 > タスク一覧）
     if (panel.classList.contains("open")) return { el: panel, back: () => panel.classList.remove("open") };
     if (selectedId) return { el: document.getElementById("detail"), back: () => { selectedId = null; render(); } };
-    if (document.body.classList.contains("m-list")) return { el: document.getElementById("main"), back: () => { mobileScreen = "home"; selectedId = null; render(); } };
     return null;
   }
   document.addEventListener("touchstart", e => {
@@ -1298,7 +1292,7 @@ document.getElementById("gh-sync").addEventListener("click", sync);
 })();
 
 // PCは「今日の予定」を開いた状態で起動。スマホはリスト一覧（ホーム）から
-mobileScreen = isMobile() ? "home" : "list";
+mobileScreen = "list"; // リスト分け廃止のため、スマホも最初からタスク一覧
 render();
 if (cfgOk(getCfg())) { status("設定済み"); sync(); } else { status("未同期（ローカルのみ）。⚙️ 設定から同期とAIを有効化"); }
 </script>
