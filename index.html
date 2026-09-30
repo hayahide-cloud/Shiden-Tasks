@@ -113,6 +113,8 @@
   .listhead .date { color: var(--ink-2); font-size: 13px; margin-top: 4px; }
   .menu-wrap { position: relative; }
   .popover.up { top: auto; bottom: 40px; }
+  .popover.left { right: auto; left: 0; top: 34px; }
+  @media (max-width: 900px) { #list-title { cursor: pointer; } #list-title::after { content: " ▾"; font-size: 14px; color: var(--muted); } }
   .popover { position: absolute; right: 0; top: 36px; z-index: 20; background: var(--surface-2); border: 1px solid var(--grid); border-radius: 6px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); min-width: 170px; padding: 4px; }
   .popover button { display: block; width: 100%; text-align: left; padding: 9px 12px; background: transparent; border: none; color: var(--ink); font-size: 13.5px; border-radius: 4px; cursor: pointer; }
   .popover button.danger { color: var(--bad); }
@@ -176,6 +178,19 @@
   .star.on { color: var(--accent-hi); }
   .empty { color: var(--muted); font-size: 13.5px; padding: 60px 8px; text-align: center; }
   .empty .big { font-size: 40px; margin-bottom: 10px; }
+  /* アイゼンハワーマトリクス（2×2） */
+  .matrix { list-style: none; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .quad { background: var(--surface); border: 1px solid var(--grid); border-radius: 8px; padding: 10px; min-height: 160px; display: flex; flex-direction: column; }
+  .quad h3 { font-size: 13px; font-weight: 700; color: #fff; display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .quad h3 .sub { font-size: 11px; font-weight: 400; color: var(--muted); }
+  .quad h3 .n { margin-left: auto; font-size: 12px; color: var(--muted); }
+  .quad.q1 { border-top: 3px solid var(--bad); } .quad.q2 { border-top: 3px solid var(--accent); } .quad.q3 { border-top: 3px solid var(--warn); } .quad.q4 { border-top: 3px solid var(--grid); }
+  .quad ul { list-style: none; display: flex; flex-direction: column; gap: 6px; }
+  .quad .task.card { min-height: 0; padding: 8px 10px; background: var(--row); }
+  .quad .task.card .title { font-size: 14px; }
+  .quad .task.card .prio { transform: scale(.85); transform-origin: right center; }
+  .quad .empty { padding: 18px 4px; font-size: 12px; }
+  @media (max-width: 900px) { .matrix { grid-template-columns: 1fr; } .quad { min-height: 0; } }
   .priv-note { margin-top: 12px; font-size: 12px; color: var(--muted); padding: 6px 4px; }
   .done-head { display: flex; align-items: center; gap: 8px; margin: 14px 0 6px; font-size: 13px; color: var(--ink-2); cursor: pointer; user-select: none; padding: 6px 4px; border-radius: 4px; width: fit-content; }
   .done-head .chev { display: inline-block; transition: transform .15s; font-size: 11px; }
@@ -412,7 +427,8 @@
     <section class="main" id="main">
       <div class="listhead">
         <button class="ibtn back" id="back" type="button" title="リスト一覧へ">‹</button>
-        <div class="tt"><h2 id="list-title"></h2><div class="date" id="list-date"></div></div>
+        <div class="tt menu-wrap"><h2 id="list-title"></h2><div class="date" id="list-date"></div>
+          <div class="popover left" id="view-pop" hidden></div></div>
         <div class="menu-wrap"><button class="ibtn" id="sort-btn" type="button" title="並べ替え">⇅ <span id="sort-lbl"></span></button>
           <div class="popover" id="sort-pop" hidden>
             <button data-sort="priority" type="button">優先度（同じなら期限が近い順）</button>
@@ -464,6 +480,8 @@ const KEY = "shiden_tasks_v1", DEL_KEY = "shiden_tasks_deleted_v1", CFG_KEY = "s
 
 /* ---- バージョンと更新履歴（公開版が反映されているかの確認用。変更のたびに先頭へ追記する） ---- */
 const CHANGELOG = [
+  ["2026-09-30.85", "スマホ: 一覧タイトルのタップで表示切替（タスク／マトリクス／アーカイブ）"],
+  ["2026-09-30.84", "サイドバーに「⊞ マトリクス」（アイゼンハワー4象限。重要=優先度4以上、緊急=期限が超過・今日・明日）"],
   ["2026-09-30.83", "追加バーの 🔒 を ⏰ の右へ"],
   ["2026-09-30.82", "期限メニューで「期限なし」を先頭に（追加バー・詳細とも）"],
   ["2026-09-30.81", "一覧のタスク名を大きく（PC 16px／スマホ 17px）"],
@@ -551,8 +569,8 @@ const CHANGELOG = [
 const VERSION = CHANGELOG[0][0];
 document.getElementById("ver").textContent = "v" + VERSION;
 document.getElementById("changelog").innerHTML = CHANGELOG.map(([v, m], i) => `<li class="${i === 0 ? "cur" : ""}"><span class="v">${v}</span><span>${m}</span></li>`).join("");
-const SMART = { all: "タスク", archive: "アーカイブ" }; // アーカイブ＝前日以前に完了したタスク（当日完了分は「タスク」の完了欄に残る）
-const SMART_ICO = { all: "🏠", archive: "🗄" };
+const SMART = { all: "タスク", matrix: "マトリクス", archive: "アーカイブ" }; // マトリクス＝アイゼンハワー（重要=優先度4以上／緊急=期限が明日以前） // アーカイブ＝前日以前に完了したタスク（当日完了分は「タスク」の完了欄に残る）
+const SMART_ICO = { all: "🏠", matrix: "⊞", archive: "🗄" };
 function prioBars(v, lg) { return `<span class="prio ${lg ? "lg" : ""}" data-act="prio" data-v="${v || 0}" title="優先度 ${v || 0}/5（バーをクリックで設定）">${[1, 2, 3, 4, 5].map(p => `<i data-p="${p}"></i>`).join("")}</span>`; }
 const TAG_CH = ["Teams", "Outlook", "LINE", "電話", "Excel", "Word", "PP", "Web", "その他ツール"];  // どこの案件か／何で作るか（PP＝PowerPoint）
 const TAG_TY = ["確認", "対応", "返信", "新規文章作成", "成果物作成", "手配", "購入", "調査", "検討", "その他種別"];  // 表示順
@@ -616,6 +634,9 @@ function fmtRemind(r) {
   return mo + "/" + dd + " " + time;
 }
 function dateOf(ms) { const d = new Date(ms); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
+function isImportant(t) { return (t.priority || 0) >= 4; }
+function isUrgent(t) { return !!t.due && t.due <= addDays(1); } // 超過・今日・明日
+function quadrantOf(t) { return isUrgent(t) ? (isImportant(t) ? "q1" : "q3") : (isImportant(t) ? "q2" : "q4"); }
 function isArchived(t) { return t.done && dateOf(t.doneAt || t.mt) < todayStr(); } // 完了日が今日より前ならアーカイブ
 const isMobile = () => window.innerWidth <= 900;
 
@@ -656,6 +677,7 @@ function visibleTasks() {
   const td = todayStr();
   return db.tasks.filter(t => {
     if (view === "archive") return isArchived(t);
+    if (view === "matrix") return !t.done && !(t.tags || []).includes("プライベート");
     return !isArchived(t); // 前日以前に完了したものはアーカイブへ
   });
 }
@@ -667,7 +689,7 @@ function render() { migrateTags(); renderNav(); renderList(); renderDetail(); do
 let mobileScreen = "home"; // スマホ: "home"=リスト一覧 / "list"=タスク一覧
 
 function renderNav() {
-  const cnt = k => { if (k === "archive") return 0; const v = view; view = k; const n = visibleTasks().filter(t => !t.done && !(t.tags || []).includes("プライベート")).length; view = v; return n; };
+  const cnt = k => { if (k === "archive" || k === "matrix") return 0; const v = view; view = k; const n = visibleTasks().filter(t => !t.done && !(t.tags || []).includes("プライベート")).length; view = v; return n; };
   const item = (k, ico, name) => `<li class="${view === k ? "active" : ""}" data-view="${k}"><span class="ico">${ico}</span><span class="nm">${esc(name)}</span><span class="cnt">${cnt(k) || ""}</span></li>`;
   let html = Object.keys(SMART).map(k => item(k, SMART_ICO[k], SMART[k])).join("");
   // リスト分けは廃止（2026-09-30）。自作リストは表示しない（データは残るが、タスクはすべて「タスク」に出る）
@@ -725,6 +747,15 @@ function renderList() {
       ${prioBars(t.priority)}
     </li>`;
   };
+  if (view === "matrix") {
+    document.getElementById("tagbar").hidden = true; document.getElementById("sort-btn").hidden = true;
+    document.getElementById("list-date").textContent = "重要＝優先度4以上 ／ 緊急＝期限が超過・今日・明日";
+    const Q = [["q1", "🔥 緊急 × 重要", "今すぐやる"], ["q2", "🎯 重要・緊急でない", "予定を決めてやる"], ["q3", "⚡ 緊急・重要でない", "さっと片付ける／任せる"], ["q4", "🌫 どちらでもない", "減らす・やめる"]];
+    const card = t => row(t).replace('class="task ', 'class="task card ');
+    document.getElementById("tasks").innerHTML = `<div class="matrix">${Q.map(([q, h, sub]) => { const items = sortOpen(open.filter(t => quadrantOf(t) === q)); return `<div class="quad ${q}"><h3>${h}<span class="sub">${sub}</span><span class="n">${items.length}</span></h3><ul>${items.length ? items.map(card).join("") : `<div class="empty">なし</div>`}</ul></div>`; }).join("")}</div>`;
+    return;
+  }
+  document.getElementById("sort-btn").hidden = false;
   let html = open.map(row).join("");
   if (!open.length && !done.length) html += `<div class="empty"><div class="big">${list ? "☰" : SMART_ICO[view]}</div>${view === "all" ? "下の欄からタスクを追加できます。" : view === "archive" ? "アーカイブは空です。完了した翌日からここに移ります。" : "タスクはありません"}</div>`;
   if (hiddenPriv) html += `<div class="priv-note">🔒 プライベート ${hiddenPriv}件は非表示（フィルタで「プライベート」を選ぶと表示）</div>`;
@@ -1008,6 +1039,15 @@ document.getElementById("newlist-add").addEventListener("click", () => {
 document.getElementById("newlist").addEventListener("keydown", e => { if (e.key === "Enter") document.getElementById("newlist-add").click(); if (e.key === "Escape") { e.target.value = ""; document.getElementById("side").classList.remove("open"); } });
 document.getElementById("newlist").addEventListener("blur", () => { setTimeout(() => { if (!document.getElementById("newlist").value.trim()) document.getElementById("side").classList.remove("open"); }, 150); });
 
+// スマホ用: 一覧タイトルをタップで表示切替（タスク／マトリクス／アーカイブ）
+document.getElementById("list-title").addEventListener("click", e => {
+  if (!isMobile()) return; e.stopPropagation();
+  const p = document.getElementById("view-pop");
+  p.innerHTML = Object.keys(SMART).map(k => `<button type="button" data-view="${k}" class="${view === k ? "on" : ""}">${SMART_ICO[k]} ${SMART[k]}</button>`).join("");
+  p.hidden = !p.hidden;
+});
+document.getElementById("view-pop").addEventListener("click", e => { const b = e.target.closest("[data-view]"); if (!b) return; e.stopPropagation(); view = b.dataset.view; selectedId = null; document.getElementById("view-pop").hidden = true; render(); });
+document.addEventListener("click", () => { document.getElementById("view-pop").hidden = true; });
 // 並べ替えメニュー
 document.getElementById("sort-btn").addEventListener("click", e => { e.stopPropagation(); document.getElementById("list-pop").hidden = true; const p = document.getElementById("sort-pop"); p.hidden = !p.hidden; });
 document.getElementById("sort-pop").addEventListener("click", e => {
