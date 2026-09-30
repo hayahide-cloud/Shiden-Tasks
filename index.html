@@ -119,6 +119,24 @@
   .task .meta .over { color: var(--bad); }
   .task .meta .today { color: var(--accent-hi); }
   .task .meta .aim { color: var(--accent-hi); }
+  /* タグ（チャネル＝青系／種別＝緑系／自由＝灰） */
+  .tag { display: inline-flex; align-items: center; font-size: 11px; line-height: 1; padding: 3px 7px; border-radius: 999px; border: 1px solid transparent; white-space: nowrap; }
+  .tag.ch { background: rgba(56,189,248,0.14); color: #7dd3fc; border-color: rgba(56,189,248,0.3); }
+  .tag.ty { background: rgba(52,211,153,0.14); color: #6ee7b7; border-color: rgba(52,211,153,0.3); }
+  .tag.fr { background: var(--surface-3); color: var(--ink-2); border-color: var(--grid); }
+  .task .meta .tag { margin-right: 2px; }
+  .task .meta .tag + .tag::before, .task .meta span + .tag::before, .task .meta .tag + span::before { content: none; margin: 0; }
+  .tagbar { display: flex; gap: 6px; flex-wrap: wrap; padding: 0 28px 10px; }
+  .tagbar .tag { cursor: pointer; opacity: .55; padding: 5px 10px; font-size: 12px; }
+  .tagbar .tag.on, .tagbar .tag:not(.on):active { opacity: 1; box-shadow: 0 0 0 1px currentColor inset; }
+  .tagbar .clear { font-size: 12px; color: var(--muted); background: none; border: none; cursor: pointer; }
+  .dtags { padding: 10px 14px; display: flex; flex-direction: column; gap: 8px; }
+  .dtags .grp { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 12px; color: var(--muted); }
+  .dtags .grp .lbl { width: 52px; flex: none; }
+  .dtags .tag { cursor: pointer; opacity: .5; padding: 5px 10px; font-size: 12px; }
+  .dtags .tag.on { opacity: 1; box-shadow: 0 0 0 1px currentColor inset; }
+  .dtags input { flex: 1; min-width: 80px; font-size: 13px; background: var(--surface-3); color: var(--ink); border: 1px solid var(--grid); border-radius: 999px; padding: 4px 10px; outline: none; }
+  @media (max-width: 900px) { .tagbar { padding: 0 12px 8px; } }
   .star { flex: none; font-size: 17px; color: var(--muted); background: none; border: none; cursor: pointer; padding: 6px; border-radius: 4px; }
   .star.on { color: var(--accent-hi); }
   .empty { color: var(--muted); font-size: 13.5px; padding: 60px 8px; text-align: center; }
@@ -337,6 +355,7 @@
             <button id="list-delete" type="button" class="danger">リストの削除</button>
           </div></div>
       </div>
+      <div class="tagbar" id="tagbar"></div>
       <div class="tasks-scroll" id="tasks-scroll"><div class="ptr" id="ptr-main"></div><ul class="tasks" id="tasks"></ul></div>
       <div class="add"><span class="plus">＋</span><input id="add-input" placeholder="タスクの追加（AIが内容を確認します）" enterkeyhint="done">
         <span class="tools">
@@ -356,12 +375,14 @@
    データ層（localStorage が主・GitHub は同期先）
    tasks: [{id,title,done,important,myDay,due,remind,remindFired,listId,steps:[{id,title,done}],note,ai,ct,mt}]
    remind: "YYYY-MM-DDTHH:MM"（ローカル時刻）。アプリを開いている間だけ監視し、時刻が来たら通知する
+   tags: ["Teams","文章"] など。チャネル（TAG_CH）／種別（TAG_TY）の定型＋自由タグ
    lists: [{id,name,ct,mt}]   deleted: [id...]（墓標。端末間で削除を伝播）
    ================================================================ */
 const KEY = "shiden_tasks_v1", DEL_KEY = "shiden_tasks_deleted_v1", CFG_KEY = "shiden_tasks_cfg";
 
 /* ---- バージョンと更新履歴（公開版が反映されているかの確認用。変更のたびに先頭へ追記する） ---- */
 const CHANGELOG = [
+  ["2026-09-30.26", "タグ付け: 案件（Teams/Outlook/LINE）と種別（文章/作成/検討/手配）＋自由タグ。一覧でタグ絞り込み。AIが判定時にタグを自動提案"],
   ["2026-09-30.25", "AI補助を拡張: 「手配・調べもの」種類を追加しWeb検索で候補を提示（リンク付き）。段取り案を「ステップに追加」できる。作業タスクも手順をステップ化"],
   ["2026-09-30.24", "AI補助に × を追加（質問・下書きを消して初期状態へ。問い合わせ中は中断）"],
   ["2026-09-30.23", "スマホ: 「追加」ボタンが ⏰ の入力欄に隠れて押せない不具合を修正"],
@@ -393,6 +414,11 @@ document.getElementById("ver").textContent = "v" + VERSION;
 document.getElementById("changelog").innerHTML = CHANGELOG.map(([v, m], i) => `<li class="${i === 0 ? "cur" : ""}"><span class="v">${v}</span><span>${m}</span></li>`).join("");
 const SMART = { myday: "今日の予定", important: "重要", planned: "今後の予定", all: "タスク" };
 const SMART_ICO = { myday: "☀️", important: "⭐", planned: "📅", all: "🏠" };
+const TAG_CH = ["Teams", "Outlook", "LINE"];            // どこの案件か
+const TAG_TY = ["文章", "作成", "検討", "手配"];          // どんな仕事か
+function tagClass(tag) { return TAG_CH.includes(tag) ? "ch" : TAG_TY.includes(tag) ? "ty" : "fr"; }
+function tagChip(tag, on) { return `<span class="tag ${tagClass(tag)} ${on ? "on" : ""}" data-tag="${esc(tag)}">${esc(tag)}</span>`; }
+let tagFilter = null; // 一覧のタグ絞り込み（null=すべて）
 
 function load() { try { return Object.assign({ tasks: [], lists: [] }, JSON.parse(localStorage.getItem(KEY)) || {}); } catch (e) { return { tasks: [], lists: [] }; } }
 function save(d) { localStorage.setItem(KEY, JSON.stringify(d)); }
@@ -431,7 +457,7 @@ function task(id) { return db.tasks.find(t => t.id === id); }
 
 function addTask(title, listId, opt) {
   opt = opt || {};
-  const t = { id: newId(), title, done: false, important: view === "important", myDay: view === "myday", due: opt.due || (view === "planned" ? todayStr() : ""), remind: opt.remind || "", remindFired: false, listId: listId || (SMART[view] ? "" : view), steps: [], note: "", ai: null, ct: now(), mt: now() };
+  const t = { id: newId(), title, done: false, important: view === "important", myDay: view === "myday", due: opt.due || (view === "planned" ? todayStr() : ""), remind: opt.remind || "", remindFired: false, tags: [], listId: listId || (SMART[view] ? "" : view), steps: [], note: "", ai: null, ct: now(), mt: now() };
   db.tasks.push(t); save(db); scheduleSync();
   return t;
 }
@@ -482,7 +508,13 @@ function renderList() {
   document.getElementById("list-menu").hidden = !list;
   document.getElementById("list-pop").hidden = true;
   document.getElementById("main").classList.toggle("myday", view === "myday");
-  const ts = visibleTasks();
+  const all = visibleTasks();
+  // タグバー: 表示中のリストに存在するタグだけを出す
+  const counts = {}; all.forEach(t => (t.tags || []).forEach(g => counts[g] = (counts[g] || 0) + 1));
+  const tagsHere = [...TAG_CH, ...TAG_TY, ...Object.keys(counts).filter(g => !TAG_CH.includes(g) && !TAG_TY.includes(g)).sort()].filter(g => counts[g]);
+  if (tagFilter && !counts[tagFilter]) tagFilter = null;
+  document.getElementById("tagbar").innerHTML = tagsHere.length ? tagsHere.map(g => tagChip(g, tagFilter === g)).join("") + (tagFilter ? `<button class="clear" data-tag="">× 絞り込み解除</button>` : "") : "";
+  const ts = tagFilter ? all.filter(t => (t.tags || []).includes(tagFilter)) : all;
   const open = ts.filter(t => !t.done).sort((a, b) => (b.important - a.important) || (a.due || "9").localeCompare(b.due || "9") || b.ct - a.ct);
   const done = ts.filter(t => t.done).sort((a, b) => b.mt - a.mt);
   const td = todayStr();
@@ -495,6 +527,7 @@ function renderList() {
     if (t.remind && !t.done) meta.push(`<span class="${t.remindFired ? "" : "today"}">⏰ ${fmtRemind(t.remind)}</span>`);
     if (t.steps.length) meta.push(`<span>${t.steps.filter(s => s.done).length}/${t.steps.length}</span>`);
     if (t.note) meta.push(`<span>📝</span>`);
+    (t.tags || []).forEach(g => meta.push(tagChip(g)));
     if (t.ai && t.ai.draft) meta.push(`<span class="aim">⚡ 下書きあり</span>`);
     else if (t.ai && t.ai.questions && !t.ai.draft) meta.push(`<span class="aim">⚡ 回答待ち</span>`);
     return `<li class="task ${t.done ? "done" : ""} ${selectedId === t.id ? "sel" : ""}" data-id="${t.id}">
@@ -526,6 +559,11 @@ function renderDetail() {
       </div>
       <div class="dcard">
         <div class="drow ${t.myDay ? "on" : ""}" id="d-myday"><span class="ico">☀️</span><span class="lbl">${t.myDay ? "今日の予定に追加済み" : "今日の予定に追加"}</span>${t.myDay ? `<button class="clear" data-clear="myday" title="今日の予定から削除">×</button>` : ""}</div>
+      </div>
+      <div class="dcard dtags">
+        <div class="grp"><span class="lbl">🏷 案件</span>${TAG_CH.map(g => tagChip(g, (t.tags || []).includes(g))).join("")}</div>
+        <div class="grp"><span class="lbl">種別</span>${TAG_TY.map(g => tagChip(g, (t.tags || []).includes(g))).join("")}</div>
+        <div class="grp"><span class="lbl">その他</span>${(t.tags || []).filter(g => !TAG_CH.includes(g) && !TAG_TY.includes(g)).map(g => tagChip(g, true)).join("")}<input id="d-tag" placeholder="＋ タグ（Enter）" enterkeyhint="done"></div>
       </div>
       <div class="dcard">
         <div class="drow ${t.due ? "on" : ""}"><span class="ico">📅</span><input type="date" id="d-due" value="${esc(t.due)}" title="期限日">${t.due ? `<button class="clear" data-clear="due" title="期限を削除">×</button>` : ""}</div>
@@ -642,7 +680,8 @@ const SYS_ASK = `あなたは日本語のタスク管理アシスタントです
 - meeting: 会議や打ち合わせの日程調整
 - research: 予約・手配・購入・調べもの（例: ゴルフのセッティング、店の予約、旅行、備品の購入、比較検討）。この場合は同行者・希望日時・場所や地域・予算・条件を聞く
 - work: 自分で行う作業（資料作成、週報、確認作業など）。この場合は成果物・期限・材料を聞く
-{"kind":"email|teams|meeting|line|research|work|other","questions":["…","…"]}`;
+さらに tags として、案件のチャネル（Teams / Outlook / LINE のいずれか。分からなければ入れない）と仕事の種別（文章 / 作成 / 検討 / 手配 のいずれか1つ）を付ける。
+{"kind":"email|teams|meeting|line|research|work|other","tags":["Teams","文章"],"questions":["…","…"]}`;
 
 const SYS_DRAFT = `あなたは日本語のビジネス文書アシスタントです。ユーザーの仕事環境は Outlook メール・Microsoft Teams・LINE です。
 タスク・種類・質問と回答をもとに、そのまま使える下書きを作ってください。
@@ -666,6 +705,8 @@ async function aiAsk(t) {
     const out = await callAI(SYS_ASK, `タスク: ${t.title}${t.note ? "\nメモ: " + t.note : ""}${t.due ? "\n期限: " + t.due : ""}`, 1024);
     const j = extractJson(out);
     t.ai = { kind: j.kind || "other", questions: Array.isArray(j.questions) ? j.questions.slice(0, 5) : [], answers: [], draft: null };
+    // タグが未設定なら AI の提案を採用（定型タグのみ。ユーザーが付けたものは上書きしない）
+    if (!(t.tags || []).length && Array.isArray(j.tags)) t.tags = j.tags.filter(g => TAG_CH.includes(g) || TAG_TY.includes(g)).slice(0, 2);
     aiBusy = null; touch(t); render();
   } catch (e) { aiBusy = null; if (e.name === "AbortError") { renderDetail(); return; } setAiStatus("失敗: " + e.message, true); }
 }
@@ -720,6 +761,10 @@ document.addEventListener("click", () => { document.getElementById("list-pop").h
 document.getElementById("list-rename").addEventListener("click", () => { const l = db.lists.find(x => x.id === view); if (!l) return; const v = prompt("リスト名", l.name); if (v && v.trim()) { l.name = v.trim(); l.mt = now(); save(db); scheduleSync(); render(); } });
 document.getElementById("list-delete").addEventListener("click", () => { const l = db.lists.find(x => x.id === view); if (l && confirm(`リスト「${l.name}」を削除します。中のタスクは「タスク」へ移動します。`)) removeList(l.id); });
 
+document.getElementById("tagbar").addEventListener("click", e => {
+  const c = e.target.closest("[data-tag]"); if (!c) return;
+  const g = c.dataset.tag; tagFilter = (!g || tagFilter === g) ? null : g; render();
+});
 document.getElementById("tasks").addEventListener("click", e => {
   if (e.target.closest("#done-head")) { doneOpen = !doneOpen; render(); return; }
   const li = e.target.closest("li.task"); if (!li) return;
@@ -814,6 +859,17 @@ function bindDetail(t) {
     const s = t.steps.find(x => x.id === li.dataset.sid); const act = e.target.closest("[data-sact]") && e.target.closest("[data-sact]").dataset.sact;
     if (act === "toggle") s.done = !s.done; else if (act === "rm") t.steps = t.steps.filter(x => x !== s); else return;
     touch(t); render();
+  });
+  el.querySelector(".dtags").addEventListener("click", e => {
+    const c = e.target.closest("[data-tag]"); if (!c) return;
+    const g = c.dataset.tag; t.tags = t.tags || [];
+    t.tags = t.tags.includes(g) ? t.tags.filter(x => x !== g) : [...t.tags, g];
+    touch(t); render();
+  });
+  el.querySelector("#d-tag").addEventListener("keydown", e => {
+    if (e.key !== "Enter") return; const v = e.target.value.trim(); if (!v) return;
+    t.tags = t.tags || []; if (!t.tags.includes(v)) t.tags.push(v); e.target.value = ""; touch(t); render();
+    setTimeout(() => document.getElementById("d-tag").focus(), 0);
   });
   el.querySelector("#d-delete").addEventListener("click", () => { if (confirm(`「${t.title}」を削除しますか？`)) removeTask(t.id); });
   el.querySelectorAll("[data-ai]").forEach(b => b.addEventListener("click", () => {
