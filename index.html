@@ -130,6 +130,8 @@
   .task .meta .tag + .tag::before, .task .meta span + .tag::before, .task .meta .tag + span::before { content: none; margin: 0; }
   .tagbar { display: flex; gap: 6px; flex-wrap: wrap; padding: 0 28px 10px; }
   .tagbar .tag { cursor: pointer; opacity: .55; padding: 5px 10px; font-size: 12px; }
+  .tagbar .tag.zero { opacity: .25; }
+  .tagbar .sep { width: 1px; background: var(--grid); margin: 2px 2px; }
   .tagbar .tag.on, .tagbar .tag:not(.on):active { opacity: 1; box-shadow: 0 0 0 1px currentColor inset; }
   .tagbar .clear { font-size: 12px; color: var(--muted); background: none; border: none; cursor: pointer; }
   .dtags { padding: 10px 14px; display: flex; flex-direction: column; gap: 8px; }
@@ -384,6 +386,7 @@ const KEY = "shiden_tasks_v1", DEL_KEY = "shiden_tasks_deleted_v1", CFG_KEY = "s
 
 /* ---- バージョンと更新履歴（公開版が反映されているかの確認用。変更のたびに先頭へ追記する） ---- */
 const CHANGELOG = [
+  ["2026-09-30.32", "フィルタバーに定型タグを常時表示（0件は薄く）"],
   ["2026-09-30.31", "ツールタグに Excel / Word / PP を追加"],
   ["2026-09-30.30", "種別タグを「文章作成」「成果物作成」に改名（既存データは自動移行）"],
   ["2026-09-30.29", "PC: 詳細ペインを常に表示（× で閉じても領域は残る）"],
@@ -522,9 +525,11 @@ function renderList() {
   const all = visibleTasks();
   // タグバー: 表示中のリストに存在するタグだけを出す
   const counts = {}; all.forEach(t => (t.tags || []).forEach(g => counts[g] = (counts[g] || 0) + 1));
-  const tagsHere = [...TAG_CH, ...TAG_TY, ...Object.keys(counts).filter(g => !TAG_CH.includes(g) && !TAG_TY.includes(g)).sort()].filter(g => counts[g]);
-  if (tagFilter && !counts[tagFilter]) tagFilter = null;
-  document.getElementById("tagbar").innerHTML = tagsHere.length ? tagsHere.map(g => tagChip(g, tagFilter === g)).join("") + (tagFilter ? `<button class="clear" data-tag="">× 絞り込み解除</button>` : "") : "";
+  // 定型タグは常に並べる（0件は薄く）。自由タグはその一覧に存在するものだけ
+  const tagsHere = [...TAG_CH, ...TAG_TY, ...Object.keys(counts).filter(g => !TAG_CH.includes(g) && !TAG_TY.includes(g)).sort()];
+  const chipOf = g => tagChip(g, tagFilter === g).replace('class="tag', `class="tag ${counts[g] ? "" : "zero"}`);
+  const free = tagsHere.filter(g => !TAG_CH.includes(g) && !TAG_TY.includes(g));
+  document.getElementById("tagbar").innerHTML = TAG_CH.map(chipOf).join("") + `<span class="sep"></span>` + TAG_TY.map(chipOf).join("") + (free.length ? `<span class="sep"></span>` + free.map(chipOf).join("") : "") + (tagFilter ? `<button class="clear" data-tag="">× 絞り込み解除</button>` : "");
   const ts = tagFilter ? all.filter(t => (t.tags || []).includes(tagFilter)) : all;
   const open = ts.filter(t => !t.done).sort((a, b) => (b.important - a.important) || (a.due || "9").localeCompare(b.due || "9") || b.ct - a.ct);
   const done = ts.filter(t => t.done).sort((a, b) => b.mt - a.mt);
