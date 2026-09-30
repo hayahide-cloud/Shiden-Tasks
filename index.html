@@ -133,8 +133,9 @@
   .add .go { flex: none; font-size: 13px; font-weight: 600; color: #fff; background: var(--accent-deep); border: none; border-radius: 4px; padding: 7px 14px; cursor: pointer; }
   .add .go:disabled { opacity: .35; cursor: default; }
 
-  /* 詳細ペイン */
+  /* 詳細ペイン（PCでは非表示時に消す。スマホはスライドで出入りするため display は使わない） */
   .detail { background: var(--surface); border-left: 1px solid var(--grid); display: flex; flex-direction: column; min-width: 0; }
+  @media (min-width: 901px) { .detail:not(.show) { display: none; } }
   .detail .scroll { flex: 1; min-height: 0; overflow: auto; padding: 14px 16px; }
   .dcard { background: var(--surface-2); border-radius: 4px; margin-bottom: 8px; }
   .dhead { display: flex; align-items: center; gap: 12px; padding: 10px 14px; }
@@ -189,11 +190,13 @@
 
   /* ---- スマホ（MS To Do モバイル同様: リスト一覧画面 → リスト画面 → 詳細） ---- */
   @media (max-width: 900px) {
-    .app, .app.has-detail { grid-template-columns: 1fr; }
+    /* 画面遷移: リスト一覧の上に、タスク一覧・詳細が右からスライドして重なる（MS To Do アプリと同じ動き） */
+    .app, .app.has-detail { grid-template-columns: 1fr; position: relative; overflow: hidden; }
     .side { border-right: none; }
-    .main { display: none; }
-    body.m-list .side { display: none; }
-    body.m-list .main { display: flex; }
+    .main { position: absolute; inset: 0; background: var(--page); transform: translateX(100%); transition: transform .28s cubic-bezier(.2,.8,.2,1); will-change: transform; }
+    body.m-list .main { transform: none; }
+    .detail { position: absolute; inset: 0; z-index: 50; border-left: none; padding-top: env(safe-area-inset-top); transform: translateX(100%); visibility: hidden; transition: transform .28s cubic-bezier(.2,.8,.2,1), visibility 0s linear .28s; will-change: transform; }
+    .detail.show { transform: none; visibility: visible; transition: transform .28s cubic-bezier(.2,.8,.2,1); }
     .nav li { padding: 12px 12px; font-size: 15px; }
     .newlist input { font-size: 16px; }
     .listhead { padding: 12px 14px 8px; align-items: center; }
@@ -205,7 +208,6 @@
     .add { left: 10px; right: 10px; bottom: max(10px, env(safe-area-inset-bottom)); }
     .add input { font-size: 16px; }
     .cfg input, .cfg select { font-size: 16px; }
-    .detail { position: fixed; inset: 0; z-index: 50; border-left: none; padding-top: env(safe-area-inset-top); }
     .dhead .title-in, .ai .q input, .stepadd input, .dnote textarea, .drow input[type=date], .drow select { font-size: 16px; }
     .brand .txt { display: none; }
   }
@@ -281,7 +283,7 @@
     </section>
 
     <!-- 詳細ペイン -->
-    <aside class="detail" id="detail" hidden></aside>
+    <aside class="detail" id="detail"></aside>
   </div>
 </div>
 
@@ -403,8 +405,8 @@ function renderList() {
 function renderDetail() {
   const el = document.getElementById("detail"), app = document.getElementById("app");
   const t = selectedId && task(selectedId);
-  if (!t) { el.hidden = true; app.classList.remove("has-detail"); return; }
-  el.hidden = false; app.classList.add("has-detail");
+  if (!t) { el.classList.remove("show"); app.classList.remove("has-detail"); return; }
+  el.classList.add("show"); app.classList.add("has-detail");
   const created = new Date(t.ct).toLocaleDateString("ja-JP", { year: "numeric", month: "short", day: "numeric" });
   el.innerHTML = `
     <div class="scroll">
