@@ -453,6 +453,7 @@ const KEY = "shiden_tasks_v1", DEL_KEY = "shiden_tasks_deleted_v1", CFG_KEY = "s
 
 /* ---- バージョンと更新履歴（公開版が反映されているかの確認用。変更のたびに先頭へ追記する） ---- */
 const CHANGELOG = [
+  ["2026-09-30.70", "プライベートのタスクは優先度が無くても不完全にしない"],
   ["2026-09-30.69", "種別タグに「購入」を追加"],
   ["2026-09-30.68", "追加バーに 🔒（プライベート）ボタン"],
   ["2026-09-30.67", "「プライベート」タグ（第3グループ・桃色）を追加"],
@@ -554,7 +555,7 @@ function sortOpen(list) {
 // 表示順は常に ツール（青）→ 種別（緑）→ 自由タグ。付けた順序に依存させない
 // ツール（青）・種別（緑）・優先度・期限のどれかが未設定なら「不完全」
 function isOverdue(t) { return !!t.due && !t.done && t.due < todayStr(); } // 期限超過（再設定するまで赤字・不完全）
-function tagIncomplete(t) { const g = t.tags || []; return !g.some(x => TAG_CH.includes(x)) || !g.some(x => TAG_TY.includes(x)) || !(t.priority > 0) || !(t.due || t.noDue) || isOverdue(t); }
+function tagIncomplete(t) { const g = t.tags || []; const priv = g.includes("プライベート"); return !g.some(x => TAG_CH.includes(x)) || !g.some(x => TAG_TY.includes(x)) || (!priv && !(t.priority > 0)) || !(t.due || t.noDue) || isOverdue(t); } // プライベートは優先度なしでもよい
 const INCOMPLETE = "__incomplete", TODAY = "__today", HIGH = "__high"; // フィルタの特別値（不完全／今日締め切り＝期限が今日以前の未完了）
 function sortTags(tags) {
   const rank = g => TAG_CH.includes(g) ? TAG_CH.indexOf(g) : TAG_TY.includes(g) ? 100 + TAG_TY.indexOf(g) : TAG_EX.includes(g) ? 150 + TAG_EX.indexOf(g) : 200;
@@ -661,7 +662,7 @@ function renderList() {
   const nInc = all.filter(t => !t.done && tagIncomplete(t)).length;
   const nToday = all.filter(t => !t.done && t.due && t.due <= todayStr()).length;
   const nHigh = all.filter(t => !t.done && (t.priority || 0) >= 4).length;
-  const incChip = `<span class="tag warn ${tagFilter === INCOMPLETE ? "on" : ""} ${nInc ? "" : "zero"}" data-tag="${INCOMPLETE}" title="ツール・種別・優先度・期限のどれかが未設定、または期限超過のタスク">⚠ 不完全${nInc ? " " + nInc : ""}</span><span class="tag today ${tagFilter === TODAY ? "on" : ""} ${nToday ? "" : "zero"}" data-tag="${TODAY}" title="期限が今日のタスク（超過分も含む）">📅 今日締切${nToday ? " " + nToday : ""}</span><span class="tag high ${tagFilter === HIGH ? "on" : ""} ${nHigh ? "" : "zero"}" data-tag="${HIGH}" title="優先度4以上のタスク">📶 優先度高${nHigh ? " " + nHigh : ""}</span><span class="sep"></span>`;
+  const incChip = `<span class="tag warn ${tagFilter === INCOMPLETE ? "on" : ""} ${nInc ? "" : "zero"}" data-tag="${INCOMPLETE}" title="ツール・種別・優先度・期限のどれかが未設定、または期限超過のタスク（プライベートは優先度不要）">⚠ 不完全${nInc ? " " + nInc : ""}</span><span class="tag today ${tagFilter === TODAY ? "on" : ""} ${nToday ? "" : "zero"}" data-tag="${TODAY}" title="期限が今日のタスク（超過分も含む）">📅 今日締切${nToday ? " " + nToday : ""}</span><span class="tag high ${tagFilter === HIGH ? "on" : ""} ${nHigh ? "" : "zero"}" data-tag="${HIGH}" title="優先度4以上のタスク">📶 優先度高${nHigh ? " " + nHigh : ""}</span><span class="sep"></span>`;
   document.getElementById("tagbar").innerHTML = incChip + TAG_CH.map(chipOf).join("") + `<span class="sep"></span>` + TAG_TY.map(chipOf).join("") + `<span class="sep"></span>` + TAG_EX.map(chipOf).join("") + (free.length ? `<span class="sep"></span>` + free.map(chipOf).join("") : "") + (tagFilter ? `<button class="clear" data-tag="">× 絞り込み解除</button>` : "");
   const ts = tagFilter === INCOMPLETE ? all.filter(tagIncomplete) : tagFilter === TODAY ? all.filter(t => t.due && t.due <= todayStr()) : tagFilter === HIGH ? all.filter(t => (t.priority || 0) >= 4) : tagFilter ? all.filter(t => (t.tags || []).includes(tagFilter)) : all;
   const open = sortOpen(ts.filter(t => !t.done));
