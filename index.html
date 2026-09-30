@@ -194,6 +194,16 @@
   .steps .chk { width: 16px; height: 16px; font-size: 9px; }
   .steps .rm { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 16px; padding: 4px; }
   .stepadd { display: flex; align-items: center; gap: 12px; padding: 0 14px; min-height: 42px; }
+  .stepadd .brk { flex: none; font-size: 12.5px; font-weight: 600; color: #fff; background: linear-gradient(90deg, var(--accent-deep), var(--accent)); border: none; border-radius: 999px; padding: 6px 12px; cursor: pointer; white-space: nowrap; }
+  .stepadd .brk:disabled { opacity: .5; }
+  .steps .sub { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 12px; padding: 4px 6px; border-radius: 4px; }
+  .steps li.child { padding-left: 22px; }
+  .steps li.child span.t { font-size: 13px; color: var(--ink-2); }
+  .brk-status { font-size: 12px; color: var(--muted); padding: 0 14px 8px; }
+  .brk-status:empty { display: none; }
+  .brk-status.err { color: var(--bad); }
+  .first-step { margin: 0 14px 10px; padding: 8px 10px; border-radius: 6px; background: rgba(124,58,237,0.14); border: 1px solid rgba(168,120,255,0.35); font-size: 13px; color: #fff; }
+  .first-step b { color: var(--accent-hi); }
   .stepadd .plus { color: var(--accent-hi); font-size: 18px; width: 16px; text-align: center; }
   .stepadd input { flex: 1; min-width: 0; font-size: 13.5px; background: transparent; border: none; color: var(--ink); outline: none; }
   .stepadd input::placeholder { color: var(--accent-hi); }
@@ -399,6 +409,7 @@ const KEY = "shiden_tasks_v1", DEL_KEY = "shiden_tasks_deleted_v1", CFG_KEY = "s
 
 /* ---- バージョンと更新履歴（公開版が反映されているかの確認用。変更のたびに先頭へ追記する） ---- */
 const CHANGELOG = [
+  ["2026-09-30.43", "ADHD式タスク分解: 「🧩 AIで分解」でタスクを最小単位のステップに分解、各ステップの 🧩 でさらに細分化。詳細に「次の一歩」を強調、一覧にも次のステップを表示"],
   ["2026-09-30.42", "5分間操作が無いとき・画面に戻ったときに自動同期（他端末の変更を取り込む）"],
   ["2026-09-30.41", "同期の負荷を軽減: 操作が止まって6秒後に送信（最長30秒）、同期中の変更も取りこぼさない、リモート変更が無ければ再描画しない"],
   ["2026-09-30.40", "★重要を廃止し、優先度1〜5（右肩上がりのバー）に変更。旧★は優先度4に移行。「重要」リストは「優先」（4以上）に"],
@@ -577,7 +588,7 @@ function renderList() {
     if (t.myDay && view !== "myday") meta.push(`<span>☀️ 今日の予定</span>`);
     if (t.due) meta.push(`<span class="${!t.done && t.due < td ? "over" : (t.due === td ? "today" : "")}">📅 ${fmtDue(t.due)}</span>`);
     if (t.remind && !t.done) meta.push(`<span class="${t.remindFired ? "" : "today"}">⏰ ${fmtRemind(t.remind)}</span>`);
-    if (t.steps.length) meta.push(`<span>${t.steps.filter(s => s.done).length}/${t.steps.length}</span>`);
+    if (t.steps.length) { const nx = t.steps.find(x => !x.done); meta.push(`<span>${t.steps.filter(s => s.done).length}/${t.steps.length}${nx && !t.done ? " → " + esc(nx.title) : ""}</span>`); }
     if (t.note) meta.push(`<span>📝</span>`);
     sortTags(t.tags).forEach(g => meta.push(tagChip(g)));
     if (!t.done && tagIncomplete(t)) meta.push(`<span class="tag warn" title="ツールと種別の両方を付けてください">⚠</span>`);
@@ -612,8 +623,10 @@ function renderDetail() {
         <div class="dhead"><span class="chk ${t.done ? "on" : ""}" data-act="toggle">${t.done ? "✓" : ""}</span>
           <input type="text" class="title-in" id="d-title" value="${esc(t.title)}">
           ${prioBars(t.priority, true)}</div>
-        <ul class="steps" id="d-steps">${t.steps.map(s => `<li class="${s.done ? "done" : ""}" data-sid="${s.id}"><span class="chk ${s.done ? "on" : ""}" data-sact="toggle">${s.done ? "✓" : ""}</span><span class="t">${esc(s.title)}</span><button class="rm" data-sact="rm" title="ステップを削除">×</button></li>`).join("")}</ul>
-        <div class="stepadd"><span class="plus">＋</span><input type="text" id="d-step" placeholder="${t.steps.length ? "次のステップ" : "ステップの追加"}" enterkeyhint="done"></div>
+        ${(() => { const f = t.steps.find(x => !x.done); return f && t.steps.length > 1 ? `<div class="first-step"><b>次の一歩:</b> ${esc(f.title)}</div>` : ""; })()}
+        <ul class="steps" id="d-steps">${t.steps.map(s => `<li class="${s.done ? "done" : ""} ${s.child ? "child" : ""}" data-sid="${s.id}"><span class="chk ${s.done ? "on" : ""}" data-sact="toggle">${s.done ? "✓" : ""}</span><span class="t">${esc(s.title)}</span>${getCfg().openai && !s.child ? `<button class="sub" data-sact="brk" title="このステップをさらに細かく分解">🧩</button>` : ""}<button class="rm" data-sact="rm" title="ステップを削除">×</button></li>`).join("")}</ul>
+        <div class="stepadd"><span class="plus">＋</span><input type="text" id="d-step" placeholder="${t.steps.length ? "次のステップ" : "ステップの追加"}" enterkeyhint="done">${getCfg().openai ? `<button class="brk" id="d-brk" title="AIがタスクを最小単位のステップに分解します">🧩 AIで分解</button>` : ""}</div>
+        <div class="brk-status" id="brk-status"></div>
       </div>
       <div class="dcard">
         <div class="drow ${t.myDay ? "on" : ""}" id="d-myday"><span class="ico">☀️</span><span class="lbl">${t.myDay ? "今日の予定に追加済み" : "今日の予定に追加"}</span>${t.myDay ? `<button class="clear" data-clear="myday" title="今日の予定から削除">×</button>` : ""}</div>
@@ -749,6 +762,22 @@ const SYS_DRAFT = `あなたは日本語のビジネス文書アシスタント�
 - 出力は次のJSONのみ。前後に説明文を付けない
 {"subject":"件名（メール以外は空文字）","body":"本文","notes":"送る前に確認すべき点があれば一言（無ければ空文字）","steps":["手順（workのみ。他は空配列）"]}`;
 
+const SYS_BREAKDOWN = `あなたはADHD特性のある人のための「タスク分解」アシスタントです。与えられたタスクを、迷わず手を動かせる最小単位のステップに分解してください。
+原則:
+- 最初の一歩は極端に小さくする（例:「Outlookを開く」「ファイルを新規作成して名前を付ける」）。着手のハードルをゼロにする
+- 各ステップは1動作・1〜10分で終わる粒度。動詞で終わる短文（「〜を開く」「〜を書く」「〜に送る」）
+- 実行順に並べる。必要な準備物・確認事項は独立したステップにする
+- 判断が必要な箇所は「AかBかを決める」のように決めること自体をステップにする
+- 曖昧な指示（「進める」「対応する」）は使わない。具体的な対象と動作を書く
+- 5〜12ステップ。多すぎる場合は前半を細かく、後半をまとめる
+- 出力は次のJSONのみ
+{"steps":["…","…"],"tip":"取りかかりやすくする一言（無ければ空文字）"}`;
+
+const SYS_BREAKDOWN_SUB = `あなたはADHD特性のある人のための「タスク分解」アシスタントです。タスク全体の文脈を踏まえ、指定された1つのステップだけを、さらに小さな2〜6個の動作に分解してください。
+- 各動作は1〜5分で終わる粒度。動詞で終わる短文。実行順
+- 出力は次のJSONのみ
+{"steps":["…","…"]}`;
+
 const SYS_RESEARCH = `あなたは日本語の手配・調査アシスタントです。Web検索を使って、タスクと回答に合う候補を実際に調べてください。
 - 候補は3〜5件。名称・所在地や地域・料金や条件の目安・選んだ理由を簡潔に
 - 検索で確認できなかったことは推測で書かず「要確認」とする
@@ -787,6 +816,35 @@ async function aiDraft(t) {
       links: Array.isArray(j.links) ? j.links.filter(l => l && l.url).slice(0, 8) : [], steps: Array.isArray(j.steps) ? j.steps.filter(Boolean).slice(0, 10) : [] };
     touch(t); render();
   } catch (e) { if (e.name === "AbortError") return; setAiStatus("失敗: " + e.message, true); }
+}
+function ctxOf(t) { return `タスク: ${t.title}${(t.tags || []).length ? "\nタグ: " + t.tags.join(", ") : ""}${t.note ? "\nメモ: " + t.note : ""}${t.due ? "\n期限: " + t.due : ""}${t.steps.length ? "\n既存ステップ:\n" + t.steps.map(x => "- " + x.title).join("\n") : ""}`; }
+function setBrkStatus(html, err) { const s = document.getElementById("brk-status"); if (s) { s.innerHTML = html; s.classList.toggle("err", !!err); } }
+async function aiBreakdown(t) {
+  // タスク全体を最小単位のステップに分解して追加する（既存ステップは残す）
+  const btn = document.getElementById("d-brk"); if (btn) btn.disabled = true;
+  setBrkStatus("<span class='spin'></span>最小単位に分解しています…");
+  try {
+    const out = await callAI(SYS_BREAKDOWN, ctxOf(t) + (t.steps.length ? "\n\n既存ステップと重複しない、続きまたは不足分を出してください" : ""), 2048);
+    const j = extractJson(out);
+    const steps = (Array.isArray(j.steps) ? j.steps : []).map(x => String(x).trim()).filter(Boolean).slice(0, 15);
+    if (!steps.length) throw new Error("ステップが得られませんでした");
+    steps.forEach(x => t.steps.push({ id: newId(), title: x, done: false }));
+    touch(t); render();
+    if (j.tip) setBrkStatus("💡 " + esc(j.tip));
+  } catch (e) { if (btn) btn.disabled = false; if (e.name !== "AbortError") setBrkStatus("失敗: " + e.message, true); }
+}
+async function aiBreakdownStep(t, s) {
+  // 1ステップをさらに分解し、そのステップの直後に子ステップとして差し込む
+  setBrkStatus(`<span class='spin'></span>「${esc(s.title)}」を分解しています…`);
+  try {
+    const out = await callAI(SYS_BREAKDOWN_SUB, ctxOf(t) + `\n\n分解するステップ: ${s.title}`, 1024);
+    const j = extractJson(out);
+    const subs = (Array.isArray(j.steps) ? j.steps : []).map(x => String(x).trim()).filter(Boolean).slice(0, 8);
+    if (!subs.length) throw new Error("ステップが得られませんでした");
+    const i = t.steps.indexOf(s);
+    t.steps.splice(i + 1, 0, ...subs.map(x => ({ id: newId(), title: x, done: false, child: true })));
+    touch(t); render();
+  } catch (e) { if (e.name !== "AbortError") setBrkStatus("失敗: " + e.message, true); }
 }
 function setAiStatus(html, err) { const s = document.getElementById("ai-status"); if (s) { s.innerHTML = html; s.classList.toggle("err", !!err); } }
 async function copyText(s, label) {
@@ -912,9 +970,11 @@ function bindDetail(t) {
   el.querySelector("#d-list").addEventListener("change", e => { t.listId = e.target.value; touch(t); render(); });
   el.querySelector("#d-note").addEventListener("change", e => { t.note = e.target.value; touch(t); renderList(); });
   el.querySelector("#d-step").addEventListener("keydown", e => { if (e.key !== "Enter") return; const v = e.target.value.trim(); if (!v) return; t.steps.push({ id: newId(), title: v, done: false }); touch(t); render(); setTimeout(() => document.getElementById("d-step").focus(), 0); });
+  const brk = el.querySelector("#d-brk"); if (brk) brk.addEventListener("click", () => aiBreakdown(t));
   el.querySelector("#d-steps").addEventListener("click", e => {
     const li = e.target.closest("li[data-sid]"); if (!li) return;
     const s = t.steps.find(x => x.id === li.dataset.sid); const act = e.target.closest("[data-sact]") && e.target.closest("[data-sact]").dataset.sact;
+    if (act === "brk") return aiBreakdownStep(t, s);
     if (act === "toggle") s.done = !s.done; else if (act === "rm") t.steps = t.steps.filter(x => x !== s); else return;
     touch(t); render();
   });
