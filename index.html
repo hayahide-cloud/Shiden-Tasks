@@ -142,6 +142,18 @@
   .dtags .tag.on { opacity: 1; box-shadow: 0 0 0 1px currentColor inset; }
   .dtags input { flex: 1; min-width: 80px; font-size: 13px; background: var(--surface-3); color: var(--ink); border: 1px solid var(--grid); border-radius: 999px; padding: 4px 10px; outline: none; }
   @media (max-width: 900px) { .tagbar { padding: 0 12px 8px; } }
+  /* 優先度バー（1〜5。右肩上がりの5本。音量表示のイメージ） */
+  .prio { flex: none; display: inline-flex; align-items: flex-end; gap: 2px; height: 18px; padding: 4px 6px; border-radius: 4px; cursor: pointer; }
+  .prio i { display: block; width: 4px; background: var(--grid); border-radius: 1px; transition: background .12s; }
+  .prio i:nth-child(1) { height: 5px; } .prio i:nth-child(2) { height: 8px; } .prio i:nth-child(3) { height: 11px; } .prio i:nth-child(4) { height: 14px; } .prio i:nth-child(5) { height: 17px; }
+  .prio[data-v="1"] i:nth-child(-n+1), .prio[data-v="2"] i:nth-child(-n+2), .prio[data-v="3"] i:nth-child(-n+3) { background: var(--accent); }
+  .prio[data-v="4"] i:nth-child(-n+4) { background: var(--warn); }
+  .prio[data-v="5"] i:nth-child(-n+5) { background: var(--bad); }
+  .prio.lg { height: 26px; gap: 3px; padding: 4px 8px; }
+  .prio.lg i { width: 6px; }
+  .prio.lg i:nth-child(1) { height: 7px; } .prio.lg i:nth-child(2) { height: 11px; } .prio.lg i:nth-child(3) { height: 15px; } .prio.lg i:nth-child(4) { height: 19px; } .prio.lg i:nth-child(5) { height: 23px; }
+  .prio i { position: relative; }
+  .prio i::before { content: ""; position: absolute; left: -2px; right: -2px; top: -14px; bottom: -6px; } /* 細いバーでも押しやすいよう当たり判定を広げる */
   .star { flex: none; font-size: 17px; color: var(--muted); background: none; border: none; cursor: pointer; padding: 6px; border-radius: 4px; }
   .star.on { color: var(--accent-hi); }
   .empty { color: var(--muted); font-size: 13.5px; padding: 60px 8px; text-align: center; }
@@ -378,7 +390,7 @@
 <script>
 /* ================================================================
    データ層（localStorage が主・GitHub は同期先）
-   tasks: [{id,title,done,important,myDay,due,remind,remindFired,listId,steps:[{id,title,done}],note,ai,ct,mt}]
+   tasks: [{id,title,done,priority(0-5),myDay,due,remind,remindFired,tags,listId,steps:[{id,title,done}],note,ai,ct,mt}]
    remind: "YYYY-MM-DDTHH:MM"（ローカル時刻）。アプリを開いている間だけ監視し、時刻が来たら通知する
    tags: ["Teams","文章"] など。チャネル（TAG_CH）／種別（TAG_TY）の定型＋自由タグ
    lists: [{id,name,ct,mt}]   deleted: [id...]（墓標。端末間で削除を伝播）
@@ -387,6 +399,7 @@ const KEY = "shiden_tasks_v1", DEL_KEY = "shiden_tasks_deleted_v1", CFG_KEY = "s
 
 /* ---- バージョンと更新履歴（公開版が反映されているかの確認用。変更のたびに先頭へ追記する） ---- */
 const CHANGELOG = [
+  ["2026-09-30.40", "★重要を廃止し、優先度1〜5（右肩上がりのバー）に変更。旧★は優先度4に移行。「重要」リストは「優先」（4以上）に"],
   ["2026-09-30.39", "ツールタグに Web を追加"],
   ["2026-09-30.38", "ツール（青）と種別（緑）が揃っていないタスクを「⚠ タグ不完全」として表示・絞り込み"],
   ["2026-09-30.37", "タスク追加時にAIを自動起動しない（詳細の「AIに相談する」で発動）。タグ・メモをAIに渡す"],
@@ -430,8 +443,9 @@ const CHANGELOG = [
 const VERSION = CHANGELOG[0][0];
 document.getElementById("ver").textContent = "v" + VERSION;
 document.getElementById("changelog").innerHTML = CHANGELOG.map(([v, m], i) => `<li class="${i === 0 ? "cur" : ""}"><span class="v">${v}</span><span>${m}</span></li>`).join("");
-const SMART = { myday: "今日の予定", important: "重要", planned: "今後の予定", all: "タスク" };
-const SMART_ICO = { myday: "☀️", important: "⭐", planned: "📅", all: "🏠" };
+const SMART = { myday: "今日の予定", important: "優先", planned: "今後の予定", all: "タスク" }; // 優先＝優先度4以上
+const SMART_ICO = { myday: "☀️", important: "📶", planned: "📅", all: "🏠" };
+function prioBars(v, lg) { return `<span class="prio ${lg ? "lg" : ""}" data-act="prio" data-v="${v || 0}" title="優先度 ${v || 0}/5（バーをクリックで設定）">${[1, 2, 3, 4, 5].map(p => `<i data-p="${p}"></i>`).join("")}</span>`; }
 const TAG_CH = ["Teams", "Outlook", "LINE", "Excel", "Word", "PP", "Web", "その他ツール"];  // どこの案件か／何で作るか（PP＝PowerPoint）
 const TAG_TY = ["対応", "返信", "新規文章作成", "成果物作成", "手配", "検討", "その他種別"];  // 表示順  // どんな仕事か（対応＝アンケート回答・申請など、考えずにサッと片付ける軽い作業）
 const TAG_RENAME = { "実施": "対応", "文章": "新規文章作成", "文章作成": "新規文章作成", "作成": "成果物作成" }; // 旧名称の移行（読み込み時に置換）
@@ -476,7 +490,9 @@ const isMobile = () => window.innerWidth <= 900;
 
 let db = load();
 // 旧タグ名の移行（実施→対応）。同期で戻ってきたデータにも適用するため render 前に毎回通す
-function migrateTags() { let ch = false; db.tasks.forEach(t => { if (!t.tags) return; const n = t.tags.map(g => TAG_RENAME[g] || g); if (n.join() !== t.tags.join()) { t.tags = [...new Set(n)]; t.mt = now(); ch = true; } }); if (ch) { save(db); scheduleSync(); } }
+function migrateTags() { let ch = false; db.tasks.forEach(t => {
+    if (t.priority == null) { t.priority = t.important ? 4 : 0; delete t.important; ch = true; } // 旧 ★重要 → 優先度4
+    if (!t.tags) return; const n = t.tags.map(g => TAG_RENAME[g] || g); if (n.join() !== t.tags.join()) { t.tags = [...new Set(n)]; t.mt = now(); ch = true; } }); if (ch) { save(db); scheduleSync(); } }
 migrateTags();
 let view = "myday";           // 表示中のリスト（スマート or リストid）
 let selectedId = null;        // 詳細表示中のタスク
@@ -487,7 +503,7 @@ function task(id) { return db.tasks.find(t => t.id === id); }
 
 function addTask(title, listId, opt) {
   opt = opt || {};
-  const t = { id: newId(), title, done: false, important: view === "important", myDay: view === "myday", due: opt.due || (view === "planned" ? todayStr() : ""), remind: opt.remind || "", remindFired: false, tags: [], listId: listId || (SMART[view] ? "" : view), steps: [], note: "", ai: null, ct: now(), mt: now() };
+  const t = { id: newId(), title, done: false, priority: view === "important" ? 4 : 0, myDay: view === "myday", due: opt.due || (view === "planned" ? todayStr() : ""), remind: opt.remind || "", remindFired: false, tags: [], listId: listId || (SMART[view] ? "" : view), steps: [], note: "", ai: null, ct: now(), mt: now() };
   db.tasks.push(t); save(db); scheduleSync();
   return t;
 }
@@ -509,7 +525,7 @@ function visibleTasks() {
   const td = todayStr();
   return db.tasks.filter(t => {
     if (view === "myday") return t.myDay || (t.due === td && !t.done);
-    if (view === "important") return t.important;
+    if (view === "important") return (t.priority || 0) >= 4;
     if (view === "planned") return !!t.due;
     if (view === "all") return true;
     return t.listId === view;
@@ -549,7 +565,7 @@ function renderList() {
   const incChip = `<span class="tag warn ${tagFilter === INCOMPLETE ? "on" : ""} ${nInc ? "" : "zero"}" data-tag="${INCOMPLETE}" title="ツール（青）と種別（緑）が揃っていないタスク">⚠ タグ不完全${nInc ? " " + nInc : ""}</span><span class="sep"></span>`;
   document.getElementById("tagbar").innerHTML = incChip + TAG_CH.map(chipOf).join("") + `<span class="sep"></span>` + TAG_TY.map(chipOf).join("") + (free.length ? `<span class="sep"></span>` + free.map(chipOf).join("") : "") + (tagFilter ? `<button class="clear" data-tag="">× 絞り込み解除</button>` : "");
   const ts = tagFilter === INCOMPLETE ? all.filter(tagIncomplete) : tagFilter ? all.filter(t => (t.tags || []).includes(tagFilter)) : all;
-  const open = ts.filter(t => !t.done).sort((a, b) => (b.important - a.important) || (a.due || "9").localeCompare(b.due || "9") || b.ct - a.ct);
+  const open = ts.filter(t => !t.done).sort((a, b) => ((b.priority || 0) - (a.priority || 0)) || (a.due || "9").localeCompare(b.due || "9") || b.ct - a.ct);
   const done = ts.filter(t => t.done).sort((a, b) => b.mt - a.mt);
   const td = todayStr();
   const row = t => {
@@ -568,7 +584,7 @@ function renderList() {
     return `<li class="task ${t.done ? "done" : ""} ${selectedId === t.id ? "sel" : ""}" data-id="${t.id}">
       <span class="chk" data-act="toggle" title="${t.done ? "未完了に戻す" : "完了にする"}">${t.done ? "✓" : ""}</span>
       <div class="body"><div class="title">${esc(t.title)}</div>${meta.length ? `<div class="meta">${meta.join("")}</div>` : ""}</div>
-      <button class="star ${t.important ? "on" : ""}" data-act="star" title="${t.important ? "重要から外す" : "重要としてマーク"}">${t.important ? "★" : "☆"}</button>
+      ${prioBars(t.priority)}
     </li>`;
   };
   let html = open.map(row).join("");
@@ -593,7 +609,7 @@ function renderDetail() {
       <div class="dcard">
         <div class="dhead"><span class="chk ${t.done ? "on" : ""}" data-act="toggle">${t.done ? "✓" : ""}</span>
           <input type="text" class="title-in" id="d-title" value="${esc(t.title)}">
-          <button class="star ${t.important ? "on" : ""}" id="d-imp">${t.important ? "★" : "☆"}</button></div>
+          ${prioBars(t.priority, true)}</div>
         <ul class="steps" id="d-steps">${t.steps.map(s => `<li class="${s.done ? "done" : ""}" data-sid="${s.id}"><span class="chk ${s.done ? "on" : ""}" data-sact="toggle">${s.done ? "✓" : ""}</span><span class="t">${esc(s.title)}</span><button class="rm" data-sact="rm" title="ステップを削除">×</button></li>`).join("")}</ul>
         <div class="stepadd"><span class="plus">＋</span><input type="text" id="d-step" placeholder="${t.steps.length ? "次のステップ" : "ステップの追加"}" enterkeyhint="done"></div>
       </div>
@@ -811,7 +827,7 @@ document.getElementById("tasks").addEventListener("click", e => {
   const t = task(li.dataset.id); if (!t) return;
   const act = e.target.closest("[data-act]") && e.target.closest("[data-act]").dataset.act;
   if (act === "toggle") { t.done = !t.done; touch(t); render(); return; }
-  if (act === "star") { t.important = !t.important; touch(t); render(); return; }
+  if (act === "prio") { const p = e.target.closest("[data-p]"); if (!p) return; const v = Number(p.dataset.p); t.priority = t.priority === v ? 0 : v; touch(t); render(); return; }
   selectedId = (selectedId === t.id && !isMobile()) ? null : t.id; render();
 });
 function submitAdd() {
@@ -885,7 +901,7 @@ function bindDetail(t) {
   el.querySelector("#d-title").addEventListener("change", e => { t.title = e.target.value.trim() || t.title; touch(t); render(); });
   el.querySelector("#d-title").addEventListener("keydown", e => { if (e.key === "Enter") e.target.blur(); });
   el.querySelector(".dhead [data-act=toggle]").addEventListener("click", () => { t.done = !t.done; touch(t); render(); });
-  el.querySelector("#d-imp").addEventListener("click", () => { t.important = !t.important; touch(t); render(); });
+  el.querySelector(".dhead .prio").addEventListener("click", e => { const p = e.target.closest("[data-p]"); if (!p) return; const v = Number(p.dataset.p); t.priority = t.priority === v ? 0 : v; touch(t); render(); });
   el.querySelector("#d-myday").addEventListener("click", e => { if (e.target.closest("[data-clear]")) { t.myDay = false; } else if (!t.myDay) t.myDay = true; else return; touch(t); render(); });
   el.querySelector("#d-due").addEventListener("change", e => { t.due = e.target.value; touch(t); render(); });
   const dc = el.querySelector("[data-clear=due]"); if (dc) dc.addEventListener("click", () => { t.due = ""; touch(t); render(); });
