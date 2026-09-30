@@ -319,6 +319,7 @@ const KEY = "shiden_tasks_v1", DEL_KEY = "shiden_tasks_deleted_v1", CFG_KEY = "s
 
 /* ---- バージョンと更新履歴（公開版が反映されているかの確認用。変更のたびに先頭へ追記する） ---- */
 const CHANGELOG = [
+  ["2026-09-30.11", "スマホ: 左端から右へスワイプで前の画面に戻れるように"],
   ["2026-09-30.10", "同期エラーに原因のヒントを表示（PUT 404 など）"],
   ["2026-09-30.9", "設定を独立した全画面ページに変更"],
   ["2026-09-30.8", "iPhone でアプリバーがステータスバーに重なる不具合を修正"],
@@ -736,6 +737,41 @@ document.getElementById("cfg-save").addEventListener("click", () => {
 });
 document.getElementById("cfg-clear").addEventListener("click", () => { localStorage.removeItem(CFG_KEY); fillCfg(); render(); status("設定を削除しました"); });
 document.getElementById("gh-sync").addEventListener("click", sync);
+
+/* ---- スマホ: 左端から右へのスワイプで一つ前の画面へ戻る（指に追従し、幅の1/3を超えたら確定） ---- */
+(function () {
+  let cur = null, sx = 0, sy = 0, dx = 0, active = false;
+  function topScreen() {
+    // いちばん手前に出ている画面を返す（設定 > 詳細 > タスク一覧）
+    if (panel.classList.contains("open")) return { el: panel, back: () => panel.classList.remove("open") };
+    if (selectedId) return { el: document.getElementById("detail"), back: () => { selectedId = null; render(); } };
+    if (document.body.classList.contains("m-list")) return { el: document.getElementById("main"), back: () => { mobileScreen = "home"; selectedId = null; render(); } };
+    return null;
+  }
+  document.addEventListener("touchstart", e => {
+    if (!isMobile()) return;
+    const t = e.touches[0]; if (t.clientX > 40) return; // 左端40pxから開始したときだけ
+    cur = topScreen(); if (!cur) return;
+    sx = t.clientX; sy = t.clientY; dx = 0; active = false;
+  }, { passive: true });
+  document.addEventListener("touchmove", e => {
+    if (!cur) return;
+    const t = e.touches[0]; dx = t.clientX - sx; const dy = t.clientY - sy;
+    if (!active) {
+      if (Math.abs(dy) > 10 && Math.abs(dy) > Math.abs(dx)) { cur = null; return; } // 縦スクロールは邪魔しない
+      if (dx > 10) active = true; else return;
+    }
+    cur.el.style.transition = "none"; cur.el.style.transform = `translateX(${Math.max(0, dx)}px)`;
+  }, { passive: true });
+  document.addEventListener("touchend", () => {
+    if (!cur) return;
+    const node = cur.el, back = cur.back, ok = active && dx > window.innerWidth / 3;
+    node.style.transition = "";
+    if (ok) { node.style.transform = "translateX(100%)"; setTimeout(() => { node.style.transform = ""; back(); }, 280); }
+    else node.style.transform = "";
+    cur = null; active = false;
+  });
+})();
 
 // PCは「今日の予定」を開いた状態で起動。スマホはリスト一覧（ホーム）から
 mobileScreen = isMobile() ? "home" : "list";
