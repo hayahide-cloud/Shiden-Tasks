@@ -27,7 +27,7 @@
     --grid: #2a2140; --border: rgba(168,120,255,0.16);
     --accent: #a06bff; --accent-hi: #c084fc; --accent-deep: #7c3aed;
     --good: #34d399; --bad: #f87171; --warn: #fbbf24;
-    --side-w: 250px; --detail-w: 360px; --appbar-h: 48px;
+    --side-w: 300px; --detail-w: 360px; --appbar-h: 48px;
   }
   * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html { color-scheme: dark; height: 100%; }
@@ -96,6 +96,31 @@
   .nav li .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .nav li .cnt { font-size: 12px; color: var(--muted); }
   .nav .sep { height: 1px; background: var(--grid); margin: 8px 8px; }
+  /* 今日の時間配分 */
+  .nav { flex: none; }
+  .today { flex: 1; min-height: 0; display: flex; flex-direction: column; border-top: 1px solid var(--grid); padding: 10px 10px 8px; }
+  .today .th { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+  .today .tt { font-size: 13px; font-weight: 700; color: #fff; flex: 1; }
+  .ibtn.small { height: 26px; font-size: 11.5px; padding: 0 8px; background: var(--surface-2); }
+  .tsum { font-size: 12px; color: var(--ink-2); margin-bottom: 6px; }
+  .tsum .bar { height: 6px; background: var(--surface-3); border-radius: 3px; overflow: hidden; margin-top: 4px; }
+  .tsum .bar i { display: block; height: 100%; background: var(--accent); }
+  .tsum.over .bar i { background: var(--bad); }
+  .tsum .n { font-variant-numeric: tabular-nums; }
+  .texcl { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); margin-bottom: 8px; }
+  .texcl input { width: 56px; font-size: 13px; background: var(--surface-2); color: var(--ink); border: 1px solid var(--grid); border-radius: 4px; padding: 3px 6px; text-align: right; }
+  .tl { list-style: none; flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 3px; }
+  .tl li { display: grid; grid-template-columns: 44px 1fr auto; gap: 6px; align-items: center; padding: 6px 8px; border-radius: 6px; background: var(--row); cursor: pointer; font-size: 12.5px; }
+  .tl li .tm { color: var(--accent-hi); font-variant-numeric: tabular-nums; font-weight: 600; }
+  .tl li .nm { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); }
+  .tl li .du { color: var(--muted); font-size: 11.5px; white-space: nowrap; }
+  .tl li.over { border: 1px solid rgba(248,113,113,0.5); } .tl li.over .tm { color: var(--bad); }
+  .tl li.done { opacity: .45; } .tl li.done .nm { text-decoration: line-through; }
+  .tl li.noest .du { color: var(--warn); }
+  .tl .tend { grid-template-columns: 44px 1fr; background: transparent; color: var(--muted); cursor: default; font-size: 11.5px; }
+  .tstat:empty { display: none; }
+  .tstat.err { color: var(--bad); }
+  @media (max-width: 900px) { .today { display: none; } }
   .newlist-wrap { flex: none; border-top: 1px solid var(--grid); padding: 6px; }
   .newlist-btn { width: 100%; display: flex; align-items: center; gap: 12px; padding: 9px 12px; border: none; background: transparent; color: var(--accent-hi); font-size: 14px; cursor: pointer; border-radius: 4px; text-align: left; }
   .newlist { display: none; gap: 6px; padding: 4px 6px 6px; }
@@ -420,6 +445,13 @@
       <button class="btn" id="cfg-save" type="button">保存して同期</button>
       <button class="linkbtn danger" id="cfg-clear" type="button">この端末の設定を削除</button>
     </div>
+    <h3>今日の時間配分</h3>
+    <label>始業・終業・休憩から、その日に使える時間を計算します。</label>
+    <div class="cfg-grid">
+      <label style="margin:0">始業 <input id="cfg-wstart" type="time" value="09:00"></label>
+      <label style="margin:0">終業 <input id="cfg-wend" type="time" value="18:00"></label>
+      <label style="margin:0">休憩（分） <input id="cfg-wbreak" type="number" min="0" step="15" value="60"></label>
+    </div>
     <h3>通知</h3>
     <label>⏰ の時刻になると OS の通知（Windows の通知センター／iPhone はホーム画面から起動した場合）で知らせます。ページを開いている間だけ動きます（タブが裏や最小化でも可。ブラウザを終了していると鳴りません）。</label>
     <div class="cfg-actions"><button class="linkbtn" id="notif-test" type="button">通知の許可と動作確認</button><span class="hint" id="notif-state"></span></div>
@@ -434,6 +466,14 @@
     <aside class="side" id="side">
       <div class="ptr" id="ptr-side"></div>
       <ul class="nav" id="nav"></ul>
+      <!-- 今日の時間配分（タイムライン） -->
+      <section class="today" id="today">
+        <div class="th"><span class="tt">⏱ 今日の時間配分</span><button class="ibtn small" id="today-est" type="button" title="所要時間が未設定のタスクをAIで見積もる">🧩 AIで見積もる</button></div>
+        <div class="tsum" id="today-sum"></div>
+        <div class="texcl"><label>除外 <input type="number" id="today-excl" min="0" step="15" placeholder="0"> 分</label><span class="hint">会議など。今日だけ有効</span></div>
+        <ol class="tl" id="today-tl"></ol>
+        <div class="hint tstat" id="today-status"></div>
+      </section>
       <div class="newlist-wrap" hidden>
         <button class="newlist-btn" id="side-toggle" type="button"><span>＋</span>新しいリスト</button>
         <div class="newlist"><input id="newlist" placeholder="リスト名" enterkeyhint="done"><button class="linkbtn" id="newlist-add" type="button">作成</button></div>
@@ -488,7 +528,7 @@
 <script>
 /* ================================================================
    データ層（localStorage が主・GitHub は同期先）
-   tasks: [{id,title,done,doneAt(完了時刻),overdue:[{from,to,at}](超過して期限を変えた履歴),priority(0-5),myDay,due,noDue(期限を設けない意思表示),remind,remindFired,tags,listId,steps:[{id,title,done}],note,ai,ct,mt}]
+   tasks: [{id,title,done,doneAt(完了時刻),est(所要時間・分),todayForce/todaySkip(今日の時間配分の個別上書き・日付),overdue:[{from,to,at}](超過して期限を変えた履歴),priority(0-5),myDay,due,noDue(期限を設けない意思表示),remind,remindFired,tags,listId,steps:[{id,title,done}],note,ai,ct,mt}]
    remind: "YYYY-MM-DDTHH:MM"（ローカル時刻）。アプリを開いている間だけ監視し、時刻が来たら通知する
    tags: ["Teams","文章"] など。チャネル（TAG_CH）／種別（TAG_TY）の定型＋自由タグ
    lists: [{id,name,ct,mt}]   deleted: [id...]（墓標。端末間で削除を伝播）
@@ -497,6 +537,7 @@ const KEY = "shiden_tasks_v1", DEL_KEY = "shiden_tasks_deleted_v1", CFG_KEY = "s
 
 /* ---- バージョンと更新履歴（公開版が反映されているかの確認用。変更のたびに先頭へ追記する） ---- */
 const CHANGELOG = [
+  ["2026-09-30.99", "左に「⏱ 今日の時間配分」タイムライン（対象は期限が今日以前 or 重要度3以上を自動選定、AIで所要時間を一括見積もり、始業・終業・休憩・除外から使える時間を計算、開始時刻付きで積み上げ）"],
   ["2026-09-30.98", "「完了」セクションは既定で閉じる"],
   ["2026-09-30.97", "重要度バーに「重要度 3」のラベルを添える（詳細では「重要」「最重要」などの言葉も）"],
   ["2026-09-30.96", "表記を「優先度」から「重要度」に統一"],
@@ -677,6 +718,61 @@ function fmtRemind(r) {
   return mo + "/" + dd + " " + time;
 }
 function dateOf(ms) { const d = new Date(ms); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
+/* ---- 今日の時間配分 ----
+   対象: 未完了・非プライベートで「期限が今日以前 or 重要度3以上」。todayForce/todaySkip（日付）で個別に上書き
+   所要時間 est（分）。未設定は30分扱い。AIで一括見積もり可 */
+const DEFAULT_EST = 30;
+function fmtMin(m) { return m >= 60 ? (m % 60 ? `${Math.floor(m / 60)}時間${m % 60}分` : `${m / 60}時間`) : `${m}分`; }
+function isTodayTask(t) {
+  const td = todayStr();
+  if (t.done && dateOf(t.doneAt || t.mt) !== td) return false;
+  if ((t.tags || []).includes("プライベート")) return false;
+  if (t.todaySkip === td) return false;
+  if (t.todayForce === td) return true;
+  return (!!t.due && t.due <= td) || (t.priority || 0) >= 3;
+}
+function hm(str) { const [h, m] = (str || "0:0").split(":").map(Number); return h * 60 + m; }
+function fmtHM(min) { min = ((min % 1440) + 1440) % 1440; return String(Math.floor(min / 60)).padStart(2, "0") + ":" + String(min % 60).padStart(2, "0"); }
+const EXCL_KEY = "shiden_tasks_today_excl";
+function todayExcl() { try { const o = JSON.parse(localStorage.getItem(EXCL_KEY)) || {}; return o.d === todayStr() ? (o.m || 0) : 0; } catch (e) { return 0; } }
+function renderToday() {
+  const c = getCfg(); const wstart = hm(c.wstart || "09:00"), wend = hm(c.wend || "18:00"), wbreak = c.wbreak == null ? 60 : c.wbreak;
+  const excl = todayExcl(); document.getElementById("today-excl").value = excl || "";
+  const budget = Math.max(0, wend - wstart - wbreak - excl);
+  const items = db.tasks.filter(t => !isArchived(t) && isTodayTask(t));
+  const open = sortOpen(items.filter(t => !t.done)), done = items.filter(t => t.done);
+  const nowMin = (() => { const d = new Date(); return d.getHours() * 60 + d.getMinutes(); })();
+  // 開始は「今」（就業時間内なら。5分単位に切り上げ）、就業前なら始業時刻
+  let cur = nowMin > wstart && nowMin < wend ? Math.ceil(nowMin / 5) * 5 : wstart;
+  const total = open.reduce((a, t) => a + (t.est || DEFAULT_EST), 0);
+  const sum = document.getElementById("today-sum");
+  sum.classList.toggle("over", total > budget);
+  sum.innerHTML = `<span class="n">合計 ${fmtMin(total)}</span> / 使える時間 <span class="n">${fmtMin(budget)}</span>${total > budget ? ` <b style="color:var(--bad)">（${fmtMin(total - budget)} 超過）</b>` : ` <span style="color:var(--muted)">（残り ${fmtMin(budget - total)}）</span>`}<div class="bar"><i style="width:${Math.min(100, budget ? total / budget * 100 : 100)}%"></i></div>`;
+  let html = open.map(t => { const est = t.est || DEFAULT_EST; const start = cur; cur += est; const over = start >= wend || cur > wend; return `<li class="${over ? "over" : ""} ${t.est ? "" : "noest"}" data-id="${t.id}" title="${esc(t.title)}"><span class="tm">${fmtHM(start)}</span><span class="nm">${esc(t.title)}</span><span class="du">${fmtMin(est)}${t.est ? "" : "?"}</span></li>`; }).join("");
+  html += `<li class="tend"><span class="tm">${fmtHM(Math.min(cur, 1439))}</span><span>${cur > wend ? "終業 " + fmtHM(wend) + " を超過" : "終了予定（終業 " + fmtHM(wend) + "）"}</span></li>`;
+  html += done.map(t => `<li class="done" data-id="${t.id}"><span class="tm">✓</span><span class="nm">${esc(t.title)}</span><span class="du">${fmtMin(t.est || DEFAULT_EST)}</span></li>`).join("");
+  if (!open.length && !done.length) html = `<li class="tend"><span class="tm">—</span><span>今日の対象タスクはありません（期限が今日以前 or 重要度3以上、または詳細で「今日やる」）</span></li>`;
+  document.getElementById("today-tl").innerHTML = html;
+  document.getElementById("today-est").hidden = !getCfg().openai || !open.some(t => !t.est);
+}
+document.getElementById("today-tl").addEventListener("click", e => { const li = e.target.closest("li[data-id]"); if (!li) return; selectedId = li.dataset.id; if (!isMobile()) panes.detail = true; render(); });
+document.getElementById("today-excl").addEventListener("change", e => { localStorage.setItem(EXCL_KEY, JSON.stringify({ d: todayStr(), m: Number(e.target.value) || 0 })); renderToday(); });
+const SYS_EST = `あなたはタスクの所要時間を見積もるアシスタントです。各タスクについて、集中して取り組んだ場合の現実的な所要時間を分単位（5分刻み、5〜240）で見積もってください。
+- タスク名・タグ（ツール／種別）・ステップ・メモを手がかりにする。返信や確認は短め、成果物作成や検討は長め
+- 出力は次のJSONのみ
+{"estimates":[{"id":"…","minutes":30}]}`;
+async function aiEstimateToday() {
+  const targets = db.tasks.filter(t => !isArchived(t) && isTodayTask(t) && !t.done && !t.est);
+  if (!targets.length) return;
+  const st = document.getElementById("today-status"); st.classList.remove("err"); st.innerHTML = "<span class='spin'></span>所要時間を見積もっています…";
+  try {
+    const user = targets.map(t => `id: ${t.id}\nタスク: ${t.title}${(t.tags || []).length ? "\nタグ: " + t.tags.join(", ") : ""}${t.steps.length ? "\nステップ: " + t.steps.map(x => x.title).join(" / ") : ""}${t.note ? "\nメモ: " + t.note : ""}`).join("\n\n");
+    const j = extractJson(await callAI(SYS_EST, user, 2048));
+    let n = 0; (j.estimates || []).forEach(e => { const t = targets.find(x => x.id === e.id); const m = Math.round(Number(e.minutes) / 5) * 5; if (t && m >= 5) { t.est = Math.min(240, m); t.mt = now(); n++; } });
+    save(db); scheduleSync(); render(); st.textContent = `${n}件を見積もりました（詳細で修正できます）`; setTimeout(() => { if (st.textContent.includes("見積もりました")) st.textContent = ""; }, 5000);
+  } catch (e) { if (e.name !== "AbortError") { st.classList.add("err"); st.textContent = "失敗: " + e.message; } }
+}
+document.getElementById("today-est").addEventListener("click", aiEstimateToday);
 function isImportant(t) { return (t.priority || 0) >= 3; } // 重要＝重要度3以上
 // 緊急の期限: 今日から数えて3営業日目（土日は飛ばす）。例: 木曜なら 木・金・月 → 月曜まで緊急。土曜なら 月・火・水
 function urgentLimit() {
@@ -734,7 +830,7 @@ function visibleTasks() {
 /* ================================================================
    描画
    ================================================================ */
-function render() { migrateTags(); renderNav(); renderList(); renderDetail(); document.body.classList.toggle("m-list", mobileScreen === "list"); }
+function render() { migrateTags(); renderNav(); renderList(); renderDetail(); renderToday(); document.body.classList.toggle("m-list", mobileScreen === "list"); }
 let mobileScreen = "home"; // スマホ: "home"=リスト一覧 / "list"=タスク一覧
 
 function renderNav() {
@@ -860,6 +956,11 @@ function renderDetail() {
         <div class="quick"><button class="qb ${t.noDue ? "on" : ""}" id="d-nodue" title="期限を設けないタスク">期限なし</button>${[["今日", todayStr()], ["明日", addDays(1)], ["週明け月曜", nextMonday()]].map(([l, v]) => `<button class="qb ${t.due === v ? "on" : ""}" data-quick="${v}">${l}</button>`).join("")}</div>
         ${overdueCount(t) ? `<div class="overhist">⏱ 超過履歴: ${overdueCount(t)}回 <span class="hl">${t.overdue.map(h => `${fmtDue(h.from)} → ${h.to && h.to !== "期限なし" ? fmtDue(h.to) : (h.to || "削除")}`).join("、")}</span></div>` : ""}
         <div class="drow ${t.remind ? "on" : ""}"><span class="ico">⏰</span><input type="datetime-local" id="d-remind" value="${esc(t.remind)}" title="通知（アプリを開いているときに知らせます）">${t.remind ? `<button class="clear" data-clear="remind" title="通知を削除">×</button>` : ""}</div>
+      </div>
+      <div class="dcard">
+        <div class="drow ${t.est ? "on" : ""}"><span class="ico">⏱</span><span class="lbl">所要時間${t.est ? `: ${fmtMin(t.est)}` : "（未設定＝30分扱い）"}</span>${t.est ? `<button class="clear" data-clear="est" title="所要時間を削除">×</button>` : ""}</div>
+        <div class="quick">${[15, 30, 60, 90, 120].map(m => `<button class="qb ${t.est === m ? "on" : ""}" data-est="${m}">${fmtMin(m)}</button>`).join("")}<input type="number" id="d-est" min="5" step="5" placeholder="分" value="${t.est || ""}" style="width:64px;font-size:13px;background:var(--surface-3);color:var(--ink);border:1px solid var(--grid);border-radius:999px;padding:4px 10px;outline:none"></div>
+        <div class="drow ${isTodayTask(t) ? "on" : ""}"><span class="ico">⏱</span><span class="lbl">${isTodayTask(t) ? "今日の時間配分に入っています" : "今日の時間配分に入っていません"}</span><button class="toggle ${isTodayTask(t) ? "on" : ""}" id="d-today">${isTodayTask(t) ? "今日は外す" : "今日やる"}</button></div>
       </div>
       <div class="dcard dnote"><textarea id="d-note" placeholder="メモの追加">${esc(t.note)}</textarea></div>
       ${renderAi(t)}
@@ -1226,6 +1327,10 @@ function bindDetail(t) {
   el.querySelector(".dhead .prio").addEventListener("click", e => { const p = e.target.closest("[data-p]"); if (!p) return; const v = Number(p.dataset.p); t.priority = t.priority === v ? 0 : v; touch(t); render(); });
   const dd = el.querySelector("#d-due"); if (dd) dd.addEventListener("change", e => { setDue(t, e.target.value, e.target.value ? false : t.noDue); touch(t); render(); });
   el.querySelector(".quick").addEventListener("click", e => { const b = e.target.closest("[data-quick]"); if (!b) return; setDue(t, b.dataset.quick, false); touch(t); render(); });
+  el.querySelector("#d-est").addEventListener("change", e => { t.est = Number(e.target.value) || 0; touch(t); render(); });
+  el.querySelectorAll("[data-est]").forEach(b => b.addEventListener("click", () => { t.est = Number(b.dataset.est); touch(t); render(); }));
+  const ec = el.querySelector("[data-clear=est]"); if (ec) ec.addEventListener("click", () => { t.est = 0; touch(t); render(); });
+  el.querySelector("#d-today").addEventListener("click", () => { const td = todayStr(); if (isTodayTask(t)) { t.todaySkip = td; t.todayForce = ""; } else { t.todayForce = td; t.todaySkip = ""; } touch(t); render(); });
   el.querySelector("#d-nodue").addEventListener("click", () => { if (t.noDue) { t.noDue = false; } else setDue(t, "", true); touch(t); render(); });
   // 「期限なし」中でも日付入力は残す（日付を入れれば自動で解除）
   const dc = el.querySelector("[data-clear=due]"); if (dc) dc.addEventListener("click", () => { setDue(t, "", false); touch(t); render(); });
@@ -1362,6 +1467,7 @@ function fillCfg() {
   document.getElementById("cfg-token").value = c.token || "";
   document.getElementById("cfg-openai").value = c.openai || "";
   document.getElementById("cfg-model").value = c.model || "gpt-5-mini";
+  document.getElementById("cfg-wstart").value = c.wstart || "09:00"; document.getElementById("cfg-wend").value = c.wend || "18:00"; document.getElementById("cfg-wbreak").value = c.wbreak == null ? 60 : c.wbreak;
 }
 document.getElementById("gh-config").addEventListener("click", () => { fillCfg(); panel.classList.add("open"); });
 document.getElementById("cfg-close").addEventListener("click", () => panel.classList.remove("open"));
@@ -1371,6 +1477,7 @@ document.getElementById("cfg-save").addEventListener("click", () => {
     path: document.getElementById("cfg-path").value.trim() || "tasks.json", branch: document.getElementById("cfg-branch").value.trim() || "main",
     token: document.getElementById("cfg-token").value.trim(),
     openai: document.getElementById("cfg-openai").value.trim(), model: document.getElementById("cfg-model").value,
+    wstart: document.getElementById("cfg-wstart").value || "09:00", wend: document.getElementById("cfg-wend").value || "18:00", wbreak: Number(document.getElementById("cfg-wbreak").value) || 0,
   });
   panel.classList.remove("open"); render(); sync();
 });
