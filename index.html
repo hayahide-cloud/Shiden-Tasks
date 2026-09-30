@@ -482,6 +482,7 @@ const KEY = "shiden_tasks_v1", DEL_KEY = "shiden_tasks_deleted_v1", CFG_KEY = "s
 
 /* ---- バージョンと更新履歴（公開版が反映されているかの確認用。変更のたびに先頭へ追記する） ---- */
 const CHANGELOG = [
+  ["2026-09-30.91", "マトリクスの重要判定を優先度3以上に"],
   ["2026-09-30.90", "「マトリクス」を「アイゼンハワーマトリクス」に改名"],
   ["2026-09-30.89", "表示切替（マトリクス／アーカイブ／タスク）でタグ絞り込みを解除"],
   ["2026-09-30.88", "期限超過後に期限を変えると「超過履歴 N回」を記録。超過歴のあるタスクは再設定後も赤字のまま"],
@@ -576,7 +577,7 @@ const CHANGELOG = [
 const VERSION = CHANGELOG[0][0];
 document.getElementById("ver").textContent = "v" + VERSION;
 document.getElementById("changelog").innerHTML = CHANGELOG.map(([v, m], i) => `<li class="${i === 0 ? "cur" : ""}"><span class="v">${v}</span><span>${m}</span></li>`).join("");
-const SMART = { all: "タスク", matrix: "アイゼンハワーマトリクス", archive: "アーカイブ" }; // マトリクス＝アイゼンハワー（重要=優先度4以上／緊急=期限が超過＋3営業日以内） // アーカイブ＝前日以前に完了したタスク（当日完了分は「タスク」の完了欄に残る）
+const SMART = { all: "タスク", matrix: "アイゼンハワーマトリクス", archive: "アーカイブ" }; // マトリクス＝アイゼンハワー（重要=優先度3以上／緊急=期限が超過＋3営業日以内） // アーカイブ＝前日以前に完了したタスク（当日完了分は「タスク」の完了欄に残る）
 const SMART_ICO = { all: "🏠", matrix: "⊞", archive: "🗄" };
 function prioBars(v, lg) { return `<span class="prio ${lg ? "lg" : ""}" data-act="prio" data-v="${v || 0}" title="優先度 ${v || 0}/5（バーをクリックで設定）">${[1, 2, 3, 4, 5].map(p => `<i data-p="${p}"></i>`).join("")}</span>`; }
 const TAG_CH = ["Teams", "Outlook", "LINE", "電話", "Excel", "Word", "PP", "Web", "その他ツール"];  // どこの案件か／何で作るか（PP＝PowerPoint）
@@ -647,7 +648,7 @@ function fmtRemind(r) {
   return mo + "/" + dd + " " + time;
 }
 function dateOf(ms) { const d = new Date(ms); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
-function isImportant(t) { return (t.priority || 0) >= 4; }
+function isImportant(t) { return (t.priority || 0) >= 3; } // 重要＝優先度3以上
 // 緊急の期限: 今日から数えて3営業日目（土日は飛ばす）。例: 木曜なら 木・金・月 → 月曜まで緊急。土曜なら 月・火・水
 function urgentLimit() {
   const d = new Date(); let n = 0;
@@ -770,7 +771,7 @@ function renderList() {
   if (view === "matrix") {
     tagFilter = null; // マトリクスでは絞り込みを使わない
     document.getElementById("tagbar").hidden = true; document.getElementById("sort-btn").hidden = true;
-    document.getElementById("list-date").textContent = `重要＝優先度4以上 ／ 緊急＝期限が ${fmtDue(urgentLimit())} まで（超過＋3営業日）`;
+    document.getElementById("list-date").textContent = `重要＝優先度3以上 ／ 緊急＝期限が ${fmtDue(urgentLimit())} まで（超過＋3営業日）`;
     const Q = [["q1", "🔥 緊急 × 重要", "今すぐやる"], ["q2", "🎯 重要・緊急でない", "予定を決めてやる"], ["q3", "⚡ 緊急・重要でない", "さっと片付ける／任せる"], ["q4", "🌫 どちらでもない", "減らす・やめる"]];
     const card = t => row(t).replace('class="task ', 'class="task card ');
     document.getElementById("tasks").innerHTML = `<div class="matrix">${Q.map(([q, h, sub]) => { const items = sortOpen(open.filter(t => quadrantOf(t) === q)); return `<div class="quad ${q}"><h3>${h}<span class="sub">${sub}</span><span class="n">${items.length}</span></h3><ul>${items.length ? items.map(card).join("") : `<div class="empty">なし</div>`}</ul></div>`; }).join("")}</div>`;
