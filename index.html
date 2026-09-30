@@ -482,6 +482,7 @@ const KEY = "shiden_tasks_v1", DEL_KEY = "shiden_tasks_deleted_v1", CFG_KEY = "s
 
 /* ---- バージョンと更新履歴（公開版が反映されているかの確認用。変更のたびに先頭へ追記する） ---- */
 const CHANGELOG = [
+  ["2026-09-30.90", "「マトリクス」を「アイゼンハワーマトリクス」に改名"],
   ["2026-09-30.89", "表示切替（マトリクス／アーカイブ／タスク）でタグ絞り込みを解除"],
   ["2026-09-30.88", "期限超過後に期限を変えると「超過履歴 N回」を記録。超過歴のあるタスクは再設定後も赤字のまま"],
   ["2026-09-30.87", "詳細ペイン未選択時の × の見た目を統一"],
@@ -575,7 +576,7 @@ const CHANGELOG = [
 const VERSION = CHANGELOG[0][0];
 document.getElementById("ver").textContent = "v" + VERSION;
 document.getElementById("changelog").innerHTML = CHANGELOG.map(([v, m], i) => `<li class="${i === 0 ? "cur" : ""}"><span class="v">${v}</span><span>${m}</span></li>`).join("");
-const SMART = { all: "タスク", matrix: "マトリクス", archive: "アーカイブ" }; // マトリクス＝アイゼンハワー（重要=優先度4以上／緊急=期限が超過＋3営業日以内） // アーカイブ＝前日以前に完了したタスク（当日完了分は「タスク」の完了欄に残る）
+const SMART = { all: "タスク", matrix: "アイゼンハワーマトリクス", archive: "アーカイブ" }; // マトリクス＝アイゼンハワー（重要=優先度4以上／緊急=期限が超過＋3営業日以内） // アーカイブ＝前日以前に完了したタスク（当日完了分は「タスク」の完了欄に残る）
 const SMART_ICO = { all: "🏠", matrix: "⊞", archive: "🗄" };
 function prioBars(v, lg) { return `<span class="prio ${lg ? "lg" : ""}" data-act="prio" data-v="${v || 0}" title="優先度 ${v || 0}/5（バーをクリックで設定）">${[1, 2, 3, 4, 5].map(p => `<i data-p="${p}"></i>`).join("")}</span>`; }
 const TAG_CH = ["Teams", "Outlook", "LINE", "電話", "Excel", "Word", "PP", "Web", "その他ツール"];  // どこの案件か／何で作るか（PP＝PowerPoint）
