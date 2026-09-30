@@ -26,7 +26,7 @@
     --accent: #a06bff; --accent-hi: #c084fc; --accent-deep: #7c3aed;
     --accent-soft: rgba(124,58,237,0.10); --good: #34d399; --bad: #f87171; --warn: #fbbf24;
   }
-  * { margin: 0; padding: 0; box-sizing: border-box; }
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html { color-scheme: dark; }
   body {
     background: radial-gradient(920px 500px at 82% -12%, rgba(124,58,237,0.20), transparent 60%), var(--page);
@@ -67,7 +67,21 @@
   /* ---- 3カラム（サイドバー／タスク一覧／詳細） MS To Do 風 ---- */
   .app { display: grid; grid-template-columns: 220px 1fr; gap: 12px; align-items: start; }
   .app.has-detail { grid-template-columns: 220px 1fr 360px; }
-  @media (max-width: 900px) { .app, .app.has-detail { grid-template-columns: 1fr; } .side { display: none; } .side.open { display: block; } }
+  @media (max-width: 900px) {
+    /* スマホ: サイドバーを横スクロールのチップ列にして常時表示（☰切替は不要） */
+    .app, .app.has-detail { grid-template-columns: 1fr; gap: 8px; }
+    .side { position: static; padding: 6px; border-radius: 12px; min-width: 0; } /* min-width:0 が無いとチップ列が親幅を押し広げ横スクロールが発生する */
+    .nav { display: flex; gap: 6px; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; padding: 2px; min-width: 0; }
+    .nav::-webkit-scrollbar { display: none; }
+    .nav li { flex: none; padding: 8px 12px; border-radius: 999px; background: var(--surface-2); font-size: 13.5px; gap: 6px; }
+    .nav li .cnt { margin-left: 2px; }
+    .nav .sep { width: 1px; height: auto; align-self: stretch; margin: 4px 2px; }
+    .newlist { display: none; }
+    .side.open .newlist { display: flex; }
+    .newlist input { font-size: 16px; }
+    #side-toggle .lbl-pc { display: none; }
+  }
+  @media (min-width: 901px) { #side-toggle { display: none; } }
   .side { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 10px; position: sticky; top: 10px; }
   .nav { list-style: none; }
   .nav li { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 10px; cursor: pointer; color: var(--ink-2); font-size: 14px; }
@@ -101,12 +115,32 @@
   .add { display: flex; align-items: center; gap: 10px; background: var(--surface); border: 1px dashed rgba(168,120,255,0.35); border-radius: 12px; padding: 8px 12px; margin-top: 8px; }
   .add input { flex: 1; min-width: 0; font-family: inherit; font-size: 15px; background: transparent; color: var(--ink); border: none; outline: none; padding: 6px 0; }
   .add .plus { color: var(--accent-hi); font-size: 20px; }
+  .add .go { flex: none; font-family: inherit; font-size: 13px; font-weight: 700; color: #fff; background: linear-gradient(90deg, var(--accent-deep), var(--accent)); border: none; border-radius: 999px; padding: 7px 14px; cursor: pointer; }
   .empty { color: var(--muted); font-size: 13px; padding: 24px 8px; text-align: center; }
   .section-done { margin-top: 14px; font-size: 12px; color: var(--muted); padding: 0 4px 6px; }
+  @media (max-width: 900px) {
+    /* スマホ: 追加欄を画面下に固定。タップ領域を広げ、入力は16pxでiOSの自動ズームを防ぐ */
+    body { padding-bottom: 96px; }
+    h1 { font-size: 22px; } header { margin-bottom: 8px; } .header-underline { margin-top: 6px; }
+    .topbar { margin-bottom: 8px; } .linkbtn { padding: 8px 11px; }
+    .listhead { padding: 4px 2px 8px; } .listhead h2 { font-size: 21px; }
+    .task { padding: 12px; } .chk { width: 24px; height: 24px; } .task .title { font-size: 15.5px; } .star { font-size: 22px; padding: 4px; }
+    .add { position: fixed; left: 10px; right: 10px; bottom: max(10px, env(safe-area-inset-bottom)); z-index: 40; margin: 0; background: var(--surface-2); border-style: solid; box-shadow: 0 8px 30px rgba(0,0,0,0.5); }
+    .add input { font-size: 16px; }
+    .cfg input, .cfg select { font-size: 16px; }
+  }
 
   /* ---- 詳細パネル ---- */
   .detail { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 14px; position: sticky; top: 10px; max-height: calc(100vh - 24px); overflow: auto; }
-  @media (max-width: 900px) { .detail { position: fixed; inset: 0; z-index: 50; border-radius: 0; max-height: none; padding: max(14px, env(safe-area-inset-top)) 14px 32px; } }
+  @media (max-width: 900px) {
+    /* スマホ: 詳細は全画面。ヘッダー（完了・タイトル・閉じる）を上に固定し、背面のスクロールを止める */
+    .detail { position: fixed; inset: 0; z-index: 50; border-radius: 0; max-height: none; padding: 0 14px 40px; }
+    .detail .head { position: sticky; top: 0; z-index: 1; background: var(--surface); padding: max(12px, env(safe-area-inset-top)) 0 10px; margin: 0 0 6px; border-bottom: 1px solid var(--grid); }
+    .detail .close { font-size: 28px; padding: 0 4px; }
+    .detail input[type=text], .detail input[type=date], .detail textarea, .ai .q input { font-size: 16px; }
+    .detail .row { padding: 11px 0; }
+    body:has(.app.has-detail) { overflow: hidden; }
+  }
   .detail .row { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--grid); font-size: 13.5px; }
   .detail .row:last-child { border-bottom: none; }
   .detail .row .ico { width: 20px; text-align: center; color: var(--muted); }
@@ -159,7 +193,7 @@
   <div class="topbar">
     <span id="gh-status" class="gh-status"></span>
     <span class="linkbtns">
-      <button class="linkbtn" id="side-toggle" type="button">☰ リスト</button>
+      <button class="linkbtn" id="side-toggle" type="button">＋ リスト作成</button>
       <button class="linkbtn" id="gh-sync" type="button">🔄 同期</button>
       <button class="linkbtn" id="gh-config" type="button">⚙️ 設定</button>
     </span>
@@ -200,7 +234,7 @@
       <div class="listhead"><h2 id="list-title"></h2><span class="date" id="list-date"></span>
         <span class="menu"><button class="linkbtn danger" id="list-delete" type="button" hidden>リスト削除</button></span></div>
       <ul class="tasks" id="tasks"></ul>
-      <div class="add"><span class="plus">＋</span><input id="add-input" placeholder="タスクを追加（Enterで登録・AIが内容を確認します）"></div>
+      <div class="add"><span class="plus">＋</span><input id="add-input" placeholder="タスクを追加（AIが内容を確認します）" enterkeyhint="done"><button class="go" id="add-go" type="button">追加</button></div>
     </section>
     <aside class="detail" id="detail" hidden></aside>
   </div>
@@ -436,7 +470,7 @@ document.getElementById("nav").addEventListener("click", e => {
   view = li.dataset.view; selectedId = null; render();
   if (window.innerWidth <= 900) document.getElementById("side").classList.remove("open");
 });
-document.getElementById("side-toggle").addEventListener("click", () => document.getElementById("side").classList.toggle("open"));
+document.getElementById("side-toggle").addEventListener("click", () => { const s = document.getElementById("side"); s.classList.toggle("open"); if (s.classList.contains("open")) document.getElementById("newlist").focus(); });
 document.getElementById("newlist-add").addEventListener("click", () => { const i = document.getElementById("newlist"); const v = i.value.trim(); if (!v) return; const l = addList(v); i.value = ""; view = l.id; render(); });
 document.getElementById("newlist").addEventListener("keydown", e => { if (e.key === "Enter") document.getElementById("newlist-add").click(); });
 document.getElementById("list-delete").addEventListener("click", () => { const l = db.lists.find(x => x.id === view); if (l && confirm(`リスト「${l.name}」を削除します。中のタスクは「タスク」へ移動します。`)) removeList(l.id); });
@@ -449,12 +483,14 @@ document.getElementById("tasks").addEventListener("click", e => {
   if (act === "star") { t.important = !t.important; touch(t); render(); return; }
   selectedId = t.id; render();
 });
-document.getElementById("add-input").addEventListener("keydown", e => {
-  if (e.key !== "Enter") return;
-  const v = e.target.value.trim(); if (!v) return;
-  const t = addTask(v); e.target.value = ""; selectedId = t.id; render();
+function submitAdd() {
+  const input = document.getElementById("add-input");
+  const v = input.value.trim(); if (!v) return;
+  const t = addTask(v); input.value = ""; selectedId = t.id; render();
   if (getCfg().anthropic) aiAsk(t); // APIキーがあれば登録直後にAIが内容を確認しに来る
-});
+}
+document.getElementById("add-input").addEventListener("keydown", e => { if (e.key === "Enter") submitAdd(); });
+document.getElementById("add-go").addEventListener("click", submitAdd);
 
 function bindDetail(t) {
   const el = document.getElementById("detail");
