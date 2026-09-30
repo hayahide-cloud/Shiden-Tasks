@@ -437,6 +437,7 @@ const KEY = "shiden_tasks_v1", DEL_KEY = "shiden_tasks_deleted_v1", CFG_KEY = "s
 
 /* ---- バージョンと更新履歴（公開版が反映されているかの確認用。変更のたびに先頭へ追記する） ---- */
 const CHANGELOG = [
+  ["2026-09-30.58", "「期限なし」をクイックボタンの並びに移動"],
   ["2026-09-30.57", "削除の確認を画面中央のアプリ内ダイアログに変更"],
   ["2026-09-30.56", "期限のクイック設定ボタン（今日／明日／週明け月曜）を詳細に追加"],
   ["2026-09-30.55", "PC: タスク追加後に詳細を開く（タグ・優先度・期限をすぐ付けられる）。スマホは開かない"],
@@ -691,8 +692,8 @@ function renderDetail() {
         ${(() => { const fr = (t.tags || []).filter(g => !TAG_CH.includes(g) && !TAG_TY.includes(g)); return fr.length ? `<div class="grp"><span class="lbl">旧タグ</span>${fr.map(g => tagChip(g, true)).join("")}<span style="font-size:11px">（タップで削除）</span></div>` : ""; })()}
       </div>
       <div class="dcard">
-        <div class="drow ${t.due || t.noDue ? "on" : ""}"><span class="ico">📅</span>${t.noDue ? `<span class="lbl">期限なし</span>` : `<input type="date" id="d-due" value="${esc(t.due)}" title="期限日">`}<button class="toggle ${t.noDue ? "on" : ""}" id="d-nodue" title="期限を設けないタスク">${t.noDue ? "期限を設定する" : "期限なし"}</button>${t.due ? `<button class="clear" data-clear="due" title="期限を削除">×</button>` : ""}</div>
-        <div class="quick">${[["今日", todayStr()], ["明日", addDays(1)], ["週明け月曜", nextMonday()]].map(([l, v]) => `<button class="qb ${t.due === v ? "on" : ""}" data-quick="${v}">${l}</button>`).join("")}</div>
+        <div class="drow ${t.due || t.noDue ? "on" : ""}"><span class="ico">📅</span><input type="date" id="d-due" value="${esc(t.due)}" title="期限日">${t.due ? `<button class="clear" data-clear="due" title="期限を削除">×</button>` : ""}</div>
+        <div class="quick">${[["今日", todayStr()], ["明日", addDays(1)], ["週明け月曜", nextMonday()]].map(([l, v]) => `<button class="qb ${t.due === v ? "on" : ""}" data-quick="${v}">${l}</button>`).join("")}<button class="qb ${t.noDue ? "on" : ""}" id="d-nodue" title="期限を設けないタスク">期限なし</button></div>
         <div class="drow ${t.remind ? "on" : ""}"><span class="ico">⏰</span><input type="datetime-local" id="d-remind" value="${esc(t.remind)}" title="通知（アプリを開いているときに知らせます）">${t.remind ? `<button class="clear" data-clear="remind" title="通知を削除">×</button>` : ""}</div>
         <div class="drow"><span class="ico">☰</span><select id="d-list" title="リスト"><option value="">タスク</option>${db.lists.map(l => `<option value="${l.id}" ${t.listId === l.id ? "selected" : ""}>${esc(l.name)}</option>`).join("")}</select></div>
       </div>
@@ -1042,6 +1043,7 @@ function bindDetail(t) {
   const dd = el.querySelector("#d-due"); if (dd) dd.addEventListener("change", e => { t.due = e.target.value; if (t.due) t.noDue = false; touch(t); render(); });
   el.querySelector(".quick").addEventListener("click", e => { const b = e.target.closest("[data-quick]"); if (!b) return; t.due = b.dataset.quick; t.noDue = false; touch(t); render(); });
   el.querySelector("#d-nodue").addEventListener("click", () => { t.noDue = !t.noDue; if (t.noDue) t.due = ""; touch(t); render(); });
+  // 「期限なし」中でも日付入力は残す（日付を入れれば自動で解除）
   const dc = el.querySelector("[data-clear=due]"); if (dc) dc.addEventListener("click", () => { t.due = ""; touch(t); render(); });
   el.querySelector("#d-remind").addEventListener("change", e => { t.remind = e.target.value; t.remindFired = false; if (t.remind) askNotifyPermission(); touch(t); render(); });
   const rc = el.querySelector("[data-clear=remind]"); if (rc) rc.addEventListener("click", () => { t.remind = ""; t.remindFired = false; touch(t); render(); });
