@@ -387,6 +387,7 @@ const KEY = "shiden_tasks_v1", DEL_KEY = "shiden_tasks_deleted_v1", CFG_KEY = "s
 
 /* ---- バージョンと更新履歴（公開版が反映されているかの確認用。変更のたびに先頭へ追記する） ---- */
 const CHANGELOG = [
+  ["2026-09-30.39", "ツールタグに Web を追加"],
   ["2026-09-30.38", "ツール（青）と種別（緑）が揃っていないタスクを「⚠ タグ不完全」として表示・絞り込み"],
   ["2026-09-30.37", "タスク追加時にAIを自動起動しない（詳細の「AIに相談する」で発動）。タグ・メモをAIに渡す"],
   ["2026-09-30.36", "「文章作成」を「新規文章作成」に改名（自動移行）。ツール・種別に「その他ツール」「その他種別」を追加"],
@@ -431,7 +432,7 @@ document.getElementById("ver").textContent = "v" + VERSION;
 document.getElementById("changelog").innerHTML = CHANGELOG.map(([v, m], i) => `<li class="${i === 0 ? "cur" : ""}"><span class="v">${v}</span><span>${m}</span></li>`).join("");
 const SMART = { myday: "今日の予定", important: "重要", planned: "今後の予定", all: "タスク" };
 const SMART_ICO = { myday: "☀️", important: "⭐", planned: "📅", all: "🏠" };
-const TAG_CH = ["Teams", "Outlook", "LINE", "Excel", "Word", "PP", "その他ツール"];  // どこの案件か／何で作るか（PP＝PowerPoint）
+const TAG_CH = ["Teams", "Outlook", "LINE", "Excel", "Word", "PP", "Web", "その他ツール"];  // どこの案件か／何で作るか（PP＝PowerPoint）
 const TAG_TY = ["対応", "返信", "新規文章作成", "成果物作成", "手配", "検討", "その他種別"];  // 表示順  // どんな仕事か（対応＝アンケート回答・申請など、考えずにサッと片付ける軽い作業）
 const TAG_RENAME = { "実施": "対応", "文章": "新規文章作成", "文章作成": "新規文章作成", "作成": "成果物作成" }; // 旧名称の移行（読み込み時に置換）
 function tagClass(tag) { return TAG_CH.includes(tag) ? "ch" : TAG_TY.includes(tag) ? "ty" : "fr"; }
@@ -719,7 +720,7 @@ const SYS_ASK = `あなたは日本語のタスク管理アシスタントです
 - meeting: 会議や打ち合わせの日程調整
 - research: 予約・手配・購入・調べもの（例: ゴルフのセッティング、店の予約、旅行、備品の購入、比較検討）。この場合は同行者・希望日時・場所や地域・予算・条件を聞く
 - work: 自分で行う作業（資料作成、週報、確認作業など）。この場合は成果物・期限・材料を聞く
-さらに tags として、案件のツール（Teams / Outlook / LINE / Excel / Word / PP のいずれか。PP は PowerPoint。どれにも当てはまらない道具なら「その他ツール」。分からなければ入れない）と仕事の種別（対応=アンケート回答・申請・提出など考えずにすぐ片付く軽い作業 / 返信=届いたメールやメッセージへの返事 / 新規文章作成=新規にメールやメッセージなど文を書く / 成果物作成=資料・図・データなど物を作る / 手配=予約や調達 / 検討=考える・比較する / その他種別=どれにも当てはまらない、のいずれか1つ）を付ける。
+さらに tags として、案件のツール（Teams / Outlook / LINE / Excel / Word / PP / Web のいずれか。PP は PowerPoint、Web はブラウザで行う調べもの・申請・予約など。どれにも当てはまらない道具なら「その他ツール」。分からなければ入れない）と仕事の種別（対応=アンケート回答・申請・提出など考えずにすぐ片付く軽い作業 / 返信=届いたメールやメッセージへの返事 / 新規文章作成=新規にメールやメッセージなど文を書く / 成果物作成=資料・図・データなど物を作る / 手配=予約や調達 / 検討=考える・比較する / その他種別=どれにも当てはまらない、のいずれか1つ）を付ける。
 {"kind":"email|teams|meeting|line|research|work|other","tags":["Teams","新規文章作成"],"questions":["…","…"]}`;
 
 const SYS_DRAFT = `あなたは日本語のビジネス文書アシスタントです。ユーザーの仕事環境は Outlook メール・Microsoft Teams・LINE です。
