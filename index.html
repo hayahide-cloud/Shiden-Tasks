@@ -539,6 +539,7 @@ const KEY = "shiden_tasks_v1", DEL_KEY = "shiden_tasks_deleted_v1", CFG_KEY = "s
 
 /* ---- バージョンと更新履歴（公開版が反映されているかの確認用。変更のたびに先頭へ追記する） ---- */
 const CHANGELOG = [
+  ["2026-10-01.1", "AI応答が途中で切れる不具合を修正（出力上限を拡大、推論量を控えめに、見積もりのIDを連番化）"],
   ["2026-09-30.104", "今日の並び: 単純・軽いタスク（確認／対応／返信・短時間）を始業側に、重いタスクを後ろに（AI・既定の両方）"],
   ["2026-09-30.103", "AIで見積もり＆並べ替え: 所要時間と同時に、期限が今日以前を先頭に保ちつつ系統の似たタスクを隣接させた順序を適用"],
   ["2026-09-30.102", "既定の就業時間を 10:00〜19:00・休憩60分に。期限が先のタスクは終業までに収まるときだけ配置し、収まらなければ「今日は入らない」に分ける"],
@@ -791,19 +792,21 @@ const SYS_EST = `あなたはADHD特性のある人の「今日の段取り」�
 - そのうえで、系統の似たタスクを隣接させてまとめる（同じツール・同じ種別。例: Outlook の返信同士、Teams の連絡同士、Excel 作業同士）。切り替えコストを減らすため
 - 似た系統のまとまりの中では短いものを先に
 - 出力は次のJSONのみ
-{"estimates":[{"id":"…","minutes":30}],"order":["id1","id2",…]}`;
+{"estimates":[{"id":"1","minutes":30}],"order":["1","2",…]}
+- id は与えられた番号をそのまま使う。説明文は書かない`;
 async function aiEstimateToday() {
   const all = todayOrder(db.tasks.filter(t => !isArchived(t) && isTodayTask(t) && !t.done));
   if (!all.length) return;
   const td = todayStr();
   const st = document.getElementById("today-status"); st.classList.remove("err"); st.innerHTML = "<span class='spin'></span>所要時間を見積もり、並び順を考えています…";
   try {
-    const user = all.map(t => `id: ${t.id}\nタスク: ${t.title}\nmust: ${!!t.due && t.due <= td}${t.due ? "\n期限: " + t.due : ""}${t.est ? "\nest: " + t.est : ""}${(t.tags || []).length ? "\nタグ: " + t.tags.join(", ") : ""}${t.steps.length ? "\nステップ: " + t.steps.map(x => x.title).join(" / ") : ""}${t.note ? "\nメモ: " + t.note : ""}`).join("\n\n");
-    const j = extractJson(await callAI(SYS_EST, user, 3000));
-    let n = 0; (j.estimates || []).forEach(e => { const t = all.find(x => x.id === e.id); const m = Math.round(Number(e.minutes) / 5) * 5; if (t && !t.est && m >= 5) { t.est = Math.min(240, m); t.mt = now(); n++; } });
+    const sid = new Map(all.map((t, i) => [String(i + 1), t])); // 出力を短くするため id は連番で渡す
+    const user = all.map((t, i) => `id: ${i + 1}\nタスク: ${t.title}\nmust: ${!!t.due && t.due <= td}${t.due ? "\n期限: " + t.due : ""}${t.est ? "\nest: " + t.est : ""}${(t.tags || []).length ? "\nタグ: " + t.tags.join(", ") : ""}${t.steps.length ? "\nステップ: " + t.steps.map(x => x.title).join(" / ") : ""}${t.note ? "\nメモ: " + t.note : ""}`).join("\n\n");
+    const j = extractJson(await callAI(SYS_EST, user, 8000));
+    let n = 0; (j.estimates || []).forEach(e => { const t = sid.get(String(e.id)); const m = Math.round(Number(e.minutes) / 5) * 5; if (t && !t.est && m >= 5) { t.est = Math.min(240, m); t.mt = now(); n++; } });
     // 並び順: AIの order を採用しつつ、期限が今日以前（must）が必ず先頭側に来るよう補正。order に無いものは末尾
     let ordered = [];
-    if (Array.isArray(j.order)) { j.order.forEach(id => { const t = all.find(x => x.id === id); if (t && !ordered.includes(t)) ordered.push(t); }); all.forEach(t => { if (!ordered.includes(t)) ordered.push(t); }); }
+    if (Array.isArray(j.order)) { j.order.forEach(id => { const t = sid.get(String(id)); if (t && !ordered.includes(t)) ordered.push(t); }); all.forEach(t => { if (!ordered.includes(t)) ordered.push(t); }); }
     else ordered = all;
     const must = ordered.filter(t => t.due && t.due <= td), rest = ordered.filter(t => !(t.due && t.due <= td));
     saveTodayOrder([...must, ...rest]);
@@ -1096,19 +1099,20 @@ async function callAI(system, user, maxTokens) {
   const r = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST", signal: aiAbort.signal,
     headers: { "Content-Type": "application/json", Authorization: "Bearer " + cfg.openai },
-    body: JSON.stringify({
+    body: JSON.stringify(Object.assign({
       model: cfg.model || "gpt-5-mini",
-      max_completion_tokens: maxTokens || 2048,
+      // gpt-5 系は推論トークンもこの上限に含まれるため、余裕を大きく取る（途中で切れると JSON が壊れる）
+      max_completion_tokens: Math.max(maxTokens || 2048, 8000),
       response_format: { type: "json_object" },
       messages: [{ role: "system", content: system }, { role: "user", content: user }],
-    }),
+    }, /^gpt-5/.test(cfg.model || "gpt-5-mini") ? { reasoning_effort: "low" } : {})), // 短い JSON 生成なので推論は控えめに
   });
   if (!r.ok) { let m = "HTTP " + r.status; try { const j = await r.json(); m += " " + (j.error && j.error.message || ""); } catch (e) {} throw new Error(m); }
   const j = await r.json();
   const c = j.choices && j.choices[0];
   if (!c) throw new Error("応答が空です");
   if (c.finish_reason === "content_filter") throw new Error("AIが回答を控えました（コンテンツフィルタ）");
-  if (c.finish_reason === "length") throw new Error("応答が長すぎて途中で切れました");
+  if (c.finish_reason === "length") throw new Error("応答が上限で途切れました。設定でモデルを gpt-5 または gpt-4.1-mini に変えて再試行してください");
   return (c.message && c.message.content) || "";
 }
 
