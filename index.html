@@ -543,7 +543,7 @@
 <script>
 /* ================================================================
    データ層（localStorage が主・GitHub は同期先）
-   tasks: [{id,title,done,doneAt(完了時刻),est(所要時間・分),todayForce/todaySkip(今日の時間配分の個別上書き・日付),todayPos{d,n}(今日ページの手動並び),overdue:[{from,to,at}](超過して期限を変えた履歴),priority(0-5),myDay,due,noDue(期限を設けない意思表示),remind,remindFired,tags,listId,steps:[{id,title,done}],note,ai,ct,mt}]
+   tasks: [{id,title,done,doneAt(完了時刻),est(所要時間・分),todayForce/todaySkip(今日の時間配分の個別上書き・日付),(当日の並び順は db.plan {d, order, mt} に独立保存),overdue:[{from,to,at}](超過して期限を変えた履歴),priority(0-5),myDay,due,noDue(期限を設けない意思表示),remind,remindFired,tags,listId,steps:[{id,title,done}],note,ai,ct,mt}]
    remind: "YYYY-MM-DDTHH:MM"（ローカル時刻）。アプリを開いている間だけ監視し、時刻が来たら通知する
    tags: ["Teams","文章"] など。チャネル（TAG_CH）／種別（TAG_TY）の定型＋自由タグ
    lists: [{id,name,ct,mt}]   deleted: [id...]（墓標。端末間で削除を伝播）
@@ -552,6 +552,7 @@ const KEY = "shiden_tasks_v1", DEL_KEY = "shiden_tasks_deleted_v1", CFG_KEY = "s
 
 /* ---- バージョンと更新履歴（公開版が反映されているかの確認用。変更のたびに先頭へ追記する） ---- */
 const CHANGELOG = [
+  ["2026-10-01.10", "今日の並び順を独立レコードとして同期（他端末でタスクを更新しても並びが消えない）"],
   ["2026-10-01.9", "前回開いていたページを記憶。サイドバーの順を タスク一覧→アイゼンハワーマトリクス→今日の時間配分→アーカイブ に。「タスク」を「タスク一覧」に改名"],
   ["2026-10-01.8", "今日の時間配分: ▲▼を廃止（タップ移動に統一）、各行に「詳細」ボタン"],
   ["2026-10-01.7", "今日の時間配分: 組み直し後の完了済みタスクは一番下にまとめる"],
@@ -719,7 +720,7 @@ function sortTags(tags) {
   return [...(tags || [])].sort((a, b) => rank(a) - rank(b) || a.localeCompare(b, "ja"));
 }
 
-function load() { try { return Object.assign({ tasks: [], lists: [] }, JSON.parse(localStorage.getItem(KEY)) || {}); } catch (e) { return { tasks: [], lists: [] }; } }
+function load() { try { return Object.assign({ tasks: [], lists: [], plan: null }, JSON.parse(localStorage.getItem(KEY)) || {}); } catch (e) { return { tasks: [], lists: [], plan: null }; } }
 function save(d) { localStorage.setItem(KEY, JSON.stringify(d)); }
 function deleted() { try { return JSON.parse(localStorage.getItem(DEL_KEY)) || []; } catch (e) { return []; } }
 function saveDeleted(a) { localStorage.setItem(DEL_KEY, JSON.stringify(a)); }
@@ -782,11 +783,13 @@ function todayOrder(open) {
   const LIGHT = new Set(["確認", "対応", "返信"]);
   const light = t => (t.tags || []).some(g => LIGHT.has(g)) ? 0 : 1;
   const base = [...open].sort((a, b) => { const x = a.due || "9", y = b.due || "9"; return x.localeCompare(y) || (light(a) - light(b)) || ((b.priority || 0) - (a.priority || 0)) || a.ct - b.ct; });
-  const pos = t => (t.todayPos && t.todayPos.d === td) ? t.todayPos.n : null;
+  // 当日の並び順は db.plan（{d, order:[id…], mt}）に独立して保存。タスク本体の更新と同期で干渉しない
+  const plan = db.plan && db.plan.d === td ? db.plan : null;
+  const pos = t => plan ? (plan.order.indexOf(t.id) >= 0 ? plan.order.indexOf(t.id) : null) : null;
   if (!base.some(t => pos(t) != null)) return base;
   return base.map((t, i) => [t, pos(t) != null ? pos(t) : 1000 + i]).sort((a, b) => a[1] - b[1]).map(x => x[0]);
 }
-function saveTodayOrder(list) { const td = todayStr(); list.forEach((t, i) => { t.todayPos = { d: td, n: i }; t.mt = now(); }); save(db); scheduleSync(); }
+function saveTodayOrder(list) { db.plan = { d: todayStr(), order: list.map(t => t.id), mt: now() }; save(db); scheduleSync(); }
 function nextBusinessDay() { const d = new Date(); do { d.setDate(d.getDate() + 1); } while (d.getDay() === 0 || d.getDay() === 6); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
 let todayPick = null; // 今日ページで選択中のタスク（タップ→別のタスクをタップで、その上に移動）
 function renderToday() {
@@ -1554,15 +1557,16 @@ function mergeById(a, b, del) {
 function merge(local, remote) {
   remote = remote || {};
   const del = new Set([...(local.deleted || []), ...(remote.deleted || [])]);
-  return { tasks: mergeById(local.tasks, remote.tasks, del), lists: mergeById(local.lists, remote.lists, del), deleted: [...del] };
+  const lp = local.plan, rp = remote.plan; const plan = !rp ? lp : !lp ? rp : ((rp.mt || 0) > (lp.mt || 0) ? rp : lp); // 当日の並び順は更新時刻が新しい方
+  return { tasks: mergeById(local.tasks, remote.tasks, del), lists: mergeById(local.lists, remote.lists, del), deleted: [...del], plan: plan || null };
 }
 async function syncOnce(c) {
   // 戻り値: リモート側の変更を取り込んだか（取り込んだときだけ再描画する）
-  const before = JSON.stringify({ t: db.tasks, l: db.lists });
+  const before = JSON.stringify({ t: db.tasks, l: db.lists, p: db.plan });
   const remote = await ghGet(c);
-  const merged = merge({ tasks: db.tasks, lists: db.lists, deleted: deleted() }, remote.data);
-  db = { tasks: merged.tasks, lists: merged.lists }; save(db); saveDeleted(merged.deleted);
-  const changed = JSON.stringify({ t: db.tasks, l: db.lists }) !== before;
+  const merged = merge({ tasks: db.tasks, lists: db.lists, plan: db.plan, deleted: deleted() }, remote.data);
+  db = { tasks: merged.tasks, lists: merged.lists, plan: merged.plan }; save(db); saveDeleted(merged.deleted);
+  const changed = JSON.stringify({ t: db.tasks, l: db.lists, p: db.plan }) !== before;
   await ghPut(c, merged, remote.sha);
   return changed;
 }
