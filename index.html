@@ -551,6 +551,7 @@ const KEY = "shiden_tasks_v1", DEL_KEY = "shiden_tasks_deleted_v1", CFG_KEY = "s
 
 /* ---- バージョンと更新履歴（公開版が反映されているかの確認用。変更のたびに先頭へ追記する） ---- */
 const CHANGELOG = [
+  ["2026-10-01.7", "今日の時間配分: 組み直し後の完了済みタスクは一番下にまとめる"],
   ["2026-10-01.6", "今日の時間配分: 行をタップで選択→別の行をタップでその上に移動（詳細は › ボタンで開く）"],
   ["2026-10-01.5", "今日の時間配分: プライベートも期限が今日以前なら対象に含める"],
   ["2026-10-01.4", "今日の時間配分: 予定を固定して現在時刻の線が進む。遅れ／予定どおり／前倒しを上部に表示。「⟲ 今から組み直す」。行の ○ で完了。余白の既定を5分に"],
@@ -812,9 +813,9 @@ function renderToday() {
   const td = todayStr();
   // 進捗判定: 予定終了が「今」より前なのに未完了 → 遅れ。今が入っているタスク → 進行中
   let lateMin = 0, nowInserted = false, nowTask = null;
-  const rowsHtml = [];
+  const rowsHtml = [], doneRows = []; // 起点より前に完了したものは最後にまとめる
   placed.forEach((t, i) => {
-    if (!consumes(t)) { rowsHtml.push(`<li class="done" data-id="${t.id}" title="${esc(t.title)}"><span class="chk on" data-done="1" title="未完了に戻す">✓</span><span class="tm"></span><span class="nm">${esc(t.title)}</span><span class="du">${fmtMin(t.est || DEFAULT_EST)}</span></li>`); return; }
+    if (!consumes(t)) { doneRows.push(`<li class="done" data-id="${t.id}" title="${esc(t.title)}"><span class="chk on" data-done="1" title="未完了に戻す">✓</span><span class="tm"></span><span class="nm">${esc(t.title)}</span><span class="du">${fmtMin(t.est || DEFAULT_EST)}</span></li>`); return; }
     const est = t.est || DEFAULT_EST; const start = cur; const end = start + est; cur += est + gap; const over = start >= wend || end > wend;
     const isNow = !t.done && nowMin >= start && nowMin < end + gap; const isLate = !t.done && end <= nowMin && !isNow; if (isLate) lateMin = Math.max(lateMin, nowMin - end); if (isNow) nowTask = t;
     if (!nowInserted && nowMin < start && nowMin >= wstart) { rowsHtml.push(`<li class="nowline"><span></span><span class="tm">${fmtHM(nowMin)}</span><span class="ln"></span></li>`); nowInserted = true; }
@@ -826,7 +827,7 @@ function renderToday() {
   const endAt = placed.length ? cur - gap : cur; // 最後のタスクの後ろの余白は終了時刻に含めない
   if (!nowInserted && placed.length && nowMin >= wstart && nowMin < wend) html += `<li class="nowline"><span></span><span class="tm">${fmtHM(nowMin)}</span><span class="ln"></span></li>`;
   html += `<li class="tend"><span></span><span class="tm">${fmtHM(Math.min(endAt, 1439))}</span><span>${endAt > wend ? "終業 " + fmtHM(wend) + " を超過" : "終了予定（終業 " + fmtHM(wend) + "）"}</span></li>` + spillHtml;
-  html += done.map(t => `<li class="done" data-id="${t.id}"><span class="chk on" data-done="1" title="未完了に戻す">✓</span><span class="tm"></span><span class="nm">${esc(t.title)}</span><span class="du">${fmtMin(t.est || DEFAULT_EST)}</span></li>`).join("");
+  html += (doneRows.length ? `<li class="tend"><span></span><span class="tm">✓</span><span>完了 ${doneRows.length}件</span></li>` : "") + doneRows.join("");
   if (!open.length && !done.length) html = `<li class="tend"><span></span><span class="tm">—</span><span>今日の対象タスクはありません（期限が今日以前 or 重要度3以上、または詳細で「今日やる」）</span></li>`;
   document.getElementById("today-tl").innerHTML = html;
   const prog = document.getElementById("today-prog");
