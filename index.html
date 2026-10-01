@@ -552,6 +552,7 @@ const KEY = "shiden_tasks_v1", DEL_KEY = "shiden_tasks_deleted_v1", CFG_KEY = "s
 
 /* ---- バージョンと更新履歴（公開版が反映されているかの確認用。変更のたびに先頭へ追記する） ---- */
 const CHANGELOG = [
+  ["2026-10-01.12", "完了タスクは常に下へ。別端末・一覧で完了した場合も自動で今から組み直す"],
   ["2026-10-01.11", "今日の時間配分で完了にすると自動で「今から組み直す」"],
   ["2026-10-01.10", "今日の並び順を独立レコードとして同期（他端末でタスクを更新しても並びが消えない）"],
   ["2026-10-01.9", "前回開いていたページを記憶。サイドバーの順を タスク一覧→アイゼンハワーマトリクス→今日の時間配分→アーカイブ に。「タスク」を「タスク一覧」に改名"],
@@ -806,9 +807,11 @@ function renderToday() {
   const nowMin = (() => { const d = new Date(); return d.getHours() * 60 + d.getMinutes(); })();
   // 開始は「起点」（AI並べ替え／今から組み直す で更新。初回は今 or 出勤時刻）。起点を固定することで、現在時刻が予定表の上を進んでいく
   let cur = planAnchor(wstart, wend);
-  const anchorTs = (() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d.getTime() + cur * 60000; })();
-  // 起点より前に完了したタスクは枠を使わず ✓ だけ残す。起点以降に完了したものは元の枠に残す（予定表を固定）
-  const consumes = t => !t.done || (t.doneAt || t.mt || 0) > anchorTs;
+  // 起点より後に完了したタスクがあれば（別端末・一覧画面で完了した場合など）、起点を今に更新して残りを積み直す
+  const anchorTs0 = (() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d.getTime() + cur * 60000; })();
+  if (items.some(t => t.done && (t.doneAt || t.mt || 0) > anchorTs0) && nowMin > wstart && nowMin < wend) { rebaseNow(); cur = planAnchor(wstart, wend); }
+  // 完了タスクは枠を使わず、常に一番下にまとめる
+  const consumes = t => !t.done;
   // 期限が今日以前のタスクは必ず入れる（終業超過でも赤で表示）。期限が先のタスクは終業までに収まるときだけ入れ、収まらなければ「今日は入らない」へ
   const tdNow = todayStr();
   const placed = [], spill = []; let curP = cur;
