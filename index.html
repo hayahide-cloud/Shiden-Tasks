@@ -113,6 +113,7 @@
   .tl li .ctl button { background: var(--surface-3); border: 1px solid var(--grid); color: var(--ink-2); border-radius: 4px; width: 30px; height: 28px; font-size: 12px; cursor: pointer; }
   .tl li .ctl button:disabled { opacity: .3; cursor: default; }
   .tl li .ctl button[data-drop] { color: var(--bad); }
+  .tl li .ctl button.openbtn { width: auto; padding: 0 10px; color: var(--accent-hi); }
   .tl li .nm .dd { display: block; font-size: 12px; color: var(--muted); font-weight: 400; }
   .tl li .nm .dd.over { color: var(--bad); } .tl li .nm .dd.today { color: var(--accent-hi); }
   .tl li { display: grid; grid-template-columns: 56px 1fr auto auto; gap: 10px; align-items: center; padding: 10px 12px; border-radius: 6px; background: var(--row); cursor: pointer; font-size: 15px; }
@@ -551,6 +552,7 @@ const KEY = "shiden_tasks_v1", DEL_KEY = "shiden_tasks_deleted_v1", CFG_KEY = "s
 
 /* ---- バージョンと更新履歴（公開版が反映されているかの確認用。変更のたびに先頭へ追記する） ---- */
 const CHANGELOG = [
+  ["2026-10-01.8", "今日の時間配分: ▲▼を廃止（タップ移動に統一）、各行に「詳細」ボタン"],
   ["2026-10-01.7", "今日の時間配分: 組み直し後の完了済みタスクは一番下にまとめる"],
   ["2026-10-01.6", "今日の時間配分: 行をタップで選択→別の行をタップでその上に移動（詳細は › ボタンで開く）"],
   ["2026-10-01.5", "今日の時間配分: プライベートも期限が今日以前なら対象に含める"],
@@ -820,10 +822,10 @@ function renderToday() {
     const isNow = !t.done && nowMin >= start && nowMin < end + gap; const isLate = !t.done && end <= nowMin && !isNow; if (isLate) lateMin = Math.max(lateMin, nowMin - end); if (isNow) nowTask = t;
     if (!nowInserted && nowMin < start && nowMin >= wstart) { rowsHtml.push(`<li class="nowline"><span></span><span class="tm">${fmtHM(nowMin)}</span><span class="ln"></span></li>`); nowInserted = true; }
     const dueTxt = t.due ? `<span class="dd ${t.due < td ? "over" : (t.due === td ? "today" : "")}">📅 ${fmtDue(t.due)}</span>` : "";
-    rowsHtml.push(`<li class="${over && !t.done ? "over" : ""} ${t.est ? "" : "noest"} ${isNow ? "now" : ""} ${isLate ? "late" : ""} ${t.done ? "done" : ""} ${todayPick === t.id ? "picked" : ""}" data-id="${t.id}" title="${esc(t.title)}"><span class="chk ${t.done ? "on" : ""}" data-done="1" title="${t.done ? "未完了に戻す" : "完了にする"}">${t.done ? "✓" : ""}</span><span class="tm">${fmtHM(start)}</span><span class="nm">${esc(t.title)}${dueTxt}</span><span class="du">${fmtMin(est)}${t.est ? "" : "?"}</span><span class="ctl"><button data-mv="-1" title="上へ" ${i === 0 ? "disabled" : ""}>▲</button><button data-mv="1" title="下へ" ${i === open.length - 1 ? "disabled" : ""}>▼</button><button data-drop="1" title="今日から外す（期限が今日以前なら次の営業日に延期）">✕</button><button data-open="1" title="詳細を開く">›</button></span></li>`);
+    rowsHtml.push(`<li class="${over && !t.done ? "over" : ""} ${t.est ? "" : "noest"} ${isNow ? "now" : ""} ${isLate ? "late" : ""} ${t.done ? "done" : ""} ${todayPick === t.id ? "picked" : ""}" data-id="${t.id}" title="${esc(t.title)}"><span class="chk ${t.done ? "on" : ""}" data-done="1" title="${t.done ? "未完了に戻す" : "完了にする"}">${t.done ? "✓" : ""}</span><span class="tm">${fmtHM(start)}</span><span class="nm">${esc(t.title)}${dueTxt}</span><span class="du">${fmtMin(est)}${t.est ? "" : "?"}</span><span class="ctl"><button data-open="1" class="openbtn" title="詳細を開く">詳細</button><button data-drop="1" title="今日から外す（期限が今日以前なら次の営業日に延期）">✕</button></span></li>`);
   });
   let html = rowsHtml.join("");
-  const spillHtml = spill.length ? `<li class="tend"><span></span><span class="tm">⏸</span><span>今日は入らない（期限が先・終業までに収まらない） ${spill.length}件</span></li>` + spill.map(t => `<li class="spill" data-id="${t.id}" title="${esc(t.title)}"><span class="chk" data-done="1" title="完了にする"></span><span class="tm">—</span><span class="nm">${esc(t.title)}${t.due ? `<span class="dd">📅 ${fmtDue(t.due)}</span>` : ""}</span><span class="du">${fmtMin(t.est || DEFAULT_EST)}${t.est ? "" : "?"}</span><span class="ctl"><button data-drop="1" title="今日から外す">✕</button></span></li>`).join("") : "";
+  const spillHtml = spill.length ? `<li class="tend"><span></span><span class="tm">⏸</span><span>今日は入らない（期限が先・終業までに収まらない） ${spill.length}件</span></li>` + spill.map(t => `<li class="spill" data-id="${t.id}" title="${esc(t.title)}"><span class="chk" data-done="1" title="完了にする"></span><span class="tm">—</span><span class="nm">${esc(t.title)}${t.due ? `<span class="dd">📅 ${fmtDue(t.due)}</span>` : ""}</span><span class="du">${fmtMin(t.est || DEFAULT_EST)}${t.est ? "" : "?"}</span><span class="ctl"><button data-open="1" class="openbtn" title="詳細を開く">詳細</button><button data-drop="1" title="今日から外す">✕</button></span></li>`).join("") : "";
   const endAt = placed.length ? cur - gap : cur; // 最後のタスクの後ろの余白は終了時刻に含めない
   if (!nowInserted && placed.length && nowMin >= wstart && nowMin < wend) html += `<li class="nowline"><span></span><span class="tm">${fmtHM(nowMin)}</span><span class="ln"></span></li>`;
   html += `<li class="tend"><span></span><span class="tm">${fmtHM(Math.min(endAt, 1439))}</span><span>${endAt > wend ? "終業 " + fmtHM(wend) + " を超過" : "終了予定（終業 " + fmtHM(wend) + "）"}</span></li>` + spillHtml;
@@ -872,7 +874,7 @@ async function aiEstimateToday() {
     else ordered = all;
     const must = ordered.filter(t => t.due && t.due <= td), rest = ordered.filter(t => !(t.due && t.due <= td));
     saveTodayOrder([...must, ...rest]); rebaseNow(); // 今の時刻を起点に組み直す
-    render(); const st2 = document.getElementById("today-status"); if (st2) { st2.textContent = `✅ ${n}件を見積もり、系統ごとに並べ替えました（▲▼で調整できます）`; setTimeout(() => { if (st2.textContent.includes("並べ替えました")) st2.textContent = ""; }, 6000); }
+    render(); const st2 = document.getElementById("today-status"); if (st2) { st2.textContent = `✅ ${n}件を見積もり、系統ごとに並べ替えました（行をタップ→移動先をタップで調整できます）`; setTimeout(() => { if (st2.textContent.includes("並べ替えました")) st2.textContent = ""; }, 6000); }
   } catch (e) { if (e.name !== "AbortError") { st.classList.add("err"); st.textContent = "失敗: " + e.message; } const b2 = document.getElementById("today-est"); if (b2) { b2.disabled = false; b2.textContent = "🧩 AIで見積もり＆並べ替え"; } }
 }
 
@@ -1342,13 +1344,8 @@ document.getElementById("tasks").addEventListener("click", e => {
   if (e.target.closest("#today-rebase")) { rebaseNow(); renderToday(); return; }
   const tli = e.target.closest("#today-tl li[data-id]");
   if (tli) {
-    const t = task(tli.dataset.id); const mv = e.target.closest("[data-mv]"), drop = e.target.closest("[data-drop]"), dn = e.target.closest("[data-done]");
+    const t = task(tli.dataset.id); const drop = e.target.closest("[data-drop]"), dn = e.target.closest("[data-done]");
     if (dn) { t.done = !t.done; t.doneAt = t.done ? now() : null; touch(t); render(); return; }
-    if (mv) {
-      const list = todayOrder(db.tasks.filter(x => !isArchived(x) && isTodayTask(x) && !x.done));
-      const i = list.indexOf(t), j = i + Number(mv.dataset.mv); if (j < 0 || j >= list.length) return;
-      list.splice(i, 1); list.splice(j, 0, t); saveTodayOrder(list); renderToday(); return;
-    }
     if (drop) {
       // 今日から外す。期限が今日以前なら次の営業日へ延期（超過中なら超過履歴に残る）
       const td = todayStr(); let msg = `「${t.title}」を今日の時間配分から外します。`;
