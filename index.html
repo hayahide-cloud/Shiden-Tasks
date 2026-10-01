@@ -552,6 +552,7 @@ const KEY = "shiden_tasks_v1", DEL_KEY = "shiden_tasks_deleted_v1", CFG_KEY = "s
 
 /* ---- バージョンと更新履歴（公開版が反映されているかの確認用。変更のたびに先頭へ追記する） ---- */
 const CHANGELOG = [
+  ["2026-10-01.13", "今日の時間配分の対象を「期限が今日以前のタスク」のみに（重要度では入れない）"],
   ["2026-10-01.12", "完了タスクは常に下へ。別端末・一覧で完了した場合も自動で今から組み直す"],
   ["2026-10-01.11", "今日の時間配分で完了にすると自動で「今から組み直す」"],
   ["2026-10-01.10", "今日の並び順を独立レコードとして同期（他端末でタスクを更新しても並びが消えない）"],
@@ -751,7 +752,7 @@ function fmtRemind(r) {
 }
 function dateOf(ms) { const d = new Date(ms); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
 /* ---- 今日の時間配分 ----
-   対象: 未完了・非プライベートで「期限が今日以前 or 重要度3以上」。todayForce/todaySkip（日付）で個別に上書き
+   対象: 未完了で「期限が今日以前」。todayForce/todaySkip（日付）で個別に上書き
    所要時間 est（分）。未設定は30分扱い。AIで一括見積もり可 */
 const DEFAULT_EST = 30;
 function fmtMin(m) { return m >= 60 ? (m % 60 ? `${Math.floor(m / 60)}時間${m % 60}分` : `${m / 60}時間`) : `${m}分`; }
@@ -760,8 +761,7 @@ function isTodayTask(t) {
   if (t.done && dateOf(t.doneAt || t.mt) !== td) return false;
   if (t.todaySkip === td) return false;
   if (t.todayForce === td) return true;
-  if ((t.tags || []).includes("プライベート")) return !!t.due && t.due <= td; // プライベートは期限が今日以前のものだけ入れる（重要度では入れない）
-  return (!!t.due && t.due <= td) || (t.priority || 0) >= 3;
+  return !!t.due && t.due <= td; // 期限が今日以前（超過含む）のタスクだけ。重要度では入れない（必要なら詳細の「今日やる」）
 }
 function hm(str) { const [h, m] = (str || "0:0").split(":").map(Number); return h * 60 + m; }
 function fmtHM(min) { min = ((min % 1440) + 1440) % 1440; return String(Math.floor(min / 60)).padStart(2, "0") + ":" + String(min % 60).padStart(2, "0"); }
@@ -838,7 +838,7 @@ function renderToday() {
   if (!nowInserted && placed.length && nowMin >= wstart && nowMin < wend) html += `<li class="nowline"><span></span><span class="tm">${fmtHM(nowMin)}</span><span class="ln"></span></li>`;
   html += `<li class="tend"><span></span><span class="tm">${fmtHM(Math.min(endAt, 1439))}</span><span>${endAt > wend ? "終業 " + fmtHM(wend) + " を超過" : "終了予定（終業 " + fmtHM(wend) + "）"}</span></li>` + spillHtml;
   html += (doneRows.length ? `<li class="tend"><span></span><span class="tm">✓</span><span>完了 ${doneRows.length}件</span></li>` : "") + doneRows.join("");
-  if (!open.length && !done.length) html = `<li class="tend"><span></span><span class="tm">—</span><span>今日の対象タスクはありません（期限が今日以前 or 重要度3以上、または詳細で「今日やる」）</span></li>`;
+  if (!open.length && !done.length) html = `<li class="tend"><span></span><span class="tm">—</span><span>今日の対象タスクはありません（期限が今日以前、または詳細で「今日やる」）</span></li>`;
   document.getElementById("today-tl").innerHTML = html;
   const prog = document.getElementById("today-prog");
   if (todayPick && task(todayPick)) { prog.className = "tprog ahead"; prog.innerHTML = `↕ 「${esc(task(todayPick).title)}」を選択中。移動先のタスクをタップすると、その上に入ります（もう一度タップで解除）`; }
@@ -1017,7 +1017,7 @@ function renderList() {
         <div class="texcl"><label>出勤 <input type="time" id="today-start"></label><label>退勤 <input type="time" id="today-end"></label><label>除外 <input type="number" id="today-excl" min="0" step="15" placeholder="0"> 分</label><span class="hint">今日だけの予定。会議などは除外に</span></div>
         <div class="tsum" id="today-sum"></div>
         <ol class="tl" id="today-tl"></ol>
-        <div class="hint" style="margin-top:10px">対象: 期限が今日以前 または 重要度3以上（プライベートは期限が今日以前のものだけ）。詳細の「今日やる／今日は外す」で調整。所要時間は詳細の ⏱ で修正できます。始業・終業・休憩は ⚙️ 設定。</div>
+        <div class="hint" style="margin-top:10px">対象: 期限が今日以前（超過含む）のタスク。期限が先のものは詳細の「今日やる」で追加できます。詳細の「今日やる／今日は外す」で調整。所要時間は詳細の ⏱ で修正できます。始業・終業・休憩は ⚙️ 設定。</div>
       </section>`;
     renderToday(); return;
   }
