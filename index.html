@@ -550,6 +550,7 @@ const KEY = "shiden_tasks_v1", DEL_KEY = "shiden_tasks_deleted_v1", CFG_KEY = "s
 
 /* ---- バージョンと更新履歴（公開版が反映されているかの確認用。変更のたびに先頭へ追記する） ---- */
 const CHANGELOG = [
+  ["2026-10-01.5", "今日の時間配分: プライベートも期限が今日以前なら対象に含める"],
   ["2026-10-01.4", "今日の時間配分: 予定を固定して現在時刻の線が進む。遅れ／予定どおり／前倒しを上部に表示。「⟲ 今から組み直す」。行の ○ で完了。余白の既定を5分に"],
   ["2026-10-01.3", "余裕のあるスケジューリング: AIの見積もりを1.3〜1.5倍の余裕込みに、タスク間に余白（既定10分・設定で変更）を挟む"],
   ["2026-10-01.2", "今日の時間配分: AIの進行状況を上部に表示、今日だけの出勤・退勤時刻を入力可"],
@@ -748,9 +749,9 @@ function fmtMin(m) { return m >= 60 ? (m % 60 ? `${Math.floor(m / 60)}時間${m 
 function isTodayTask(t) {
   const td = todayStr();
   if (t.done && dateOf(t.doneAt || t.mt) !== td) return false;
-  if ((t.tags || []).includes("プライベート")) return false;
   if (t.todaySkip === td) return false;
   if (t.todayForce === td) return true;
+  if ((t.tags || []).includes("プライベート")) return !!t.due && t.due <= td; // プライベートは期限が今日以前のものだけ入れる（重要度では入れない）
   return (!!t.due && t.due <= td) || (t.priority || 0) >= 3;
 }
 function hm(str) { const [h, m] = (str || "0:0").split(":").map(Number); return h * 60 + m; }
@@ -1000,7 +1001,7 @@ function renderList() {
         <div class="texcl"><label>出勤 <input type="time" id="today-start"></label><label>退勤 <input type="time" id="today-end"></label><label>除外 <input type="number" id="today-excl" min="0" step="15" placeholder="0"> 分</label><span class="hint">今日だけの予定。会議などは除外に</span></div>
         <div class="tsum" id="today-sum"></div>
         <ol class="tl" id="today-tl"></ol>
-        <div class="hint" style="margin-top:10px">対象: 期限が今日以前 または 重要度3以上（プライベート除く）。詳細の「今日やる／今日は外す」で調整。所要時間は詳細の ⏱ で修正できます。始業・終業・休憩は ⚙️ 設定。</div>
+        <div class="hint" style="margin-top:10px">対象: 期限が今日以前 または 重要度3以上（プライベートは期限が今日以前のものだけ）。詳細の「今日やる／今日は外す」で調整。所要時間は詳細の ⏱ で修正できます。始業・終業・休憩は ⚙️ 設定。</div>
       </section>`;
     renderToday(); return;
   }
