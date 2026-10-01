@@ -552,6 +552,7 @@ const KEY = "shiden_tasks_v1", DEL_KEY = "shiden_tasks_deleted_v1", CFG_KEY = "s
 
 /* ---- バージョンと更新履歴（公開版が反映されているかの確認用。変更のたびに先頭へ追記する） ---- */
 const CHANGELOG = [
+  ["2026-10-01.9", "前回開いていたページを記憶。サイドバーの順を タスク一覧→アイゼンハワーマトリクス→今日の時間配分→アーカイブ に。「タスク」を「タスク一覧」に改名"],
   ["2026-10-01.8", "今日の時間配分: ▲▼を廃止（タップ移動に統一）、各行に「詳細」ボタン"],
   ["2026-10-01.7", "今日の時間配分: 組み直し後の完了済みタスクは一番下にまとめる"],
   ["2026-10-01.6", "今日の時間配分: 行をタップで選択→別の行をタップでその上に移動（詳細は › ボタンで開く）"],
@@ -668,8 +669,8 @@ const CHANGELOG = [
 const VERSION = CHANGELOG[0][0];
 document.getElementById("ver").textContent = "v" + VERSION;
 document.getElementById("changelog").innerHTML = CHANGELOG.map(([v, m], i) => `<li class="${i === 0 ? "cur" : ""}"><span class="v">${v}</span><span>${m}</span></li>`).join("");
-const SMART = { all: "タスク", today: "今日の時間配分", matrix: "アイゼンハワーマトリクス", archive: "アーカイブ" }; // マトリクス＝アイゼンハワー（重要=重要度3以上／緊急=期限が超過＋3営業日以内） // アーカイブ＝前日以前に完了したタスク（当日完了分は「タスク」の完了欄に残る）
-const SMART_ICO = { all: "🏠", today: "⏱", matrix: "⊞", archive: "🗄" };
+const SMART = { all: "タスク一覧", matrix: "アイゼンハワーマトリクス", today: "今日の時間配分", archive: "アーカイブ" }; // マトリクス＝アイゼンハワー（重要=重要度3以上／緊急=期限が超過＋3営業日以内） // アーカイブ＝前日以前に完了したタスク（当日完了分は「タスク」の完了欄に残る）
+const SMART_ICO = { all: "🏠", matrix: "⊞", today: "⏱", archive: "🗄" };
 const PRIO_WORD = ["未設定", "低", "やや低", "重要", "高", "最重要"];
 // 重要度バー＋ラベル。lg（詳細）は言葉も添える。一覧は「重要度 3」だけ
 function prioBars(v, lg) {
@@ -896,7 +897,8 @@ function migrateTags() { let ch = false; db.tasks.forEach(t => {
     if (t.priority == null) { t.priority = t.important ? 4 : 0; delete t.important; ch = true; } // 旧 ★重要 → 重要度4
     if (!t.tags) return; const n = t.tags.map(g => TAG_RENAME[g] || g); if (n.join() !== t.tags.join()) { t.tags = [...new Set(n)]; t.mt = now(); ch = true; } }); if (ch) { save(db); scheduleSync(); } }
 migrateTags();
-let view = "all";             // 表示中のリスト（スマート or リストid）
+const VIEW_KEY = "shiden_tasks_view";
+let view = (() => { const v = localStorage.getItem(VIEW_KEY); return v && ["all", "matrix", "today", "archive"].includes(v) ? v : "all"; })(); // 前回開いていたページを復元
 let selectedId = null;        // 詳細表示中のタスク
 let doneOpen = false;         // 「完了」セクションの開閉（既定は閉じる）
 
@@ -936,7 +938,7 @@ function visibleTasks() {
 /* ================================================================
    描画
    ================================================================ */
-function render() { migrateTags(); renderNav(); renderList(); renderDetail(); renderToday(); document.body.classList.toggle("m-list", mobileScreen === "list"); }
+function render() { localStorage.setItem(VIEW_KEY, view); migrateTags(); renderNav(); renderList(); renderDetail(); renderToday(); document.body.classList.toggle("m-list", mobileScreen === "list"); }
 let mobileScreen = "home"; // スマホ: "home"=リスト一覧 / "list"=タスク一覧
 
 function renderNav() {
