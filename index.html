@@ -552,6 +552,7 @@ const KEY = "shiden_tasks_v1", DEL_KEY = "shiden_tasks_deleted_v1", CFG_KEY = "s
 
 /* ---- バージョンと更新履歴（公開版が反映されているかの確認用。変更のたびに先頭へ追記する） ---- */
 const CHANGELOG = [
+  ["2026-10-01.11", "今日の時間配分で完了にすると自動で「今から組み直す」"],
   ["2026-10-01.10", "今日の並び順を独立レコードとして同期（他端末でタスクを更新しても並びが消えない）"],
   ["2026-10-01.9", "前回開いていたページを記憶。サイドバーの順を タスク一覧→アイゼンハワーマトリクス→今日の時間配分→アーカイブ に。「タスク」を「タスク一覧」に改名"],
   ["2026-10-01.8", "今日の時間配分: ▲▼を廃止（タップ移動に統一）、各行に「詳細」ボタン"],
@@ -1350,7 +1351,7 @@ document.getElementById("tasks").addEventListener("click", e => {
   const tli = e.target.closest("#today-tl li[data-id]");
   if (tli) {
     const t = task(tli.dataset.id); const drop = e.target.closest("[data-drop]"), dn = e.target.closest("[data-done]");
-    if (dn) { t.done = !t.done; t.doneAt = t.done ? now() : null; touch(t); render(); return; }
+    if (dn) { t.done = !t.done; t.doneAt = t.done ? now() : null; if (t.done) rebaseNow(); touch(t); render(); return; } // 完了したら今の時刻から組み直す（完了分は下へ、残りは今から積み直し）
     if (drop) {
       // 今日から外す。期限が今日以前なら次の営業日へ延期（超過中なら超過履歴に残る）
       const td = todayStr(); let msg = `「${t.title}」を今日の時間配分から外します。`;
