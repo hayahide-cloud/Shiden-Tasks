@@ -120,6 +120,15 @@
   .tl li .nm { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); }
   .tl li .du { color: var(--muted); font-size: 13px; white-space: nowrap; }
   .tl li.over { border: 1px solid rgba(248,113,113,0.5); } .tl li.over .tm { color: var(--bad); }
+  .tprog { margin: 0 0 8px; padding: 8px 10px; border-radius: 6px; font-size: 13px; background: var(--surface-2); border: 1px solid var(--grid); color: var(--ink-2); }
+  .tprog.ok { border-color: rgba(52,211,153,0.4); color: #6ee7b7; } .tprog.late { border-color: rgba(248,113,113,0.5); color: #fca5a5; } .tprog.ahead { border-color: rgba(168,120,255,0.5); color: var(--accent-hi); }
+  .tprog:empty { display: none; }
+  .tl li .chk { grid-row: 1; } .tl li { grid-template-columns: 24px 56px 1fr auto auto; }
+  .tl .tend { grid-template-columns: 24px 56px 1fr; } .tl li.done { grid-template-columns: 24px 56px 1fr auto; } .tl li.spill { grid-template-columns: 24px 56px 1fr auto auto; }
+  .tl li.now { background: linear-gradient(90deg, rgba(124,58,237,0.35), var(--row)); border-left: 3px solid var(--accent-hi); }
+  .tl li.late { background: rgba(248,113,113,0.08); } .tl li.late .tm { color: var(--bad); }
+  .tl li.nowline { grid-template-columns: 24px 56px 1fr; background: transparent; cursor: default; padding: 0 12px; min-height: 0; }
+  .tl li.nowline .tm { color: var(--accent-hi); font-size: 12px; } .tl li.nowline .ln { height: 2px; background: var(--accent-hi); border-radius: 1px; box-shadow: 0 0 8px var(--accent-hi); }
   .tl li.spill { opacity: .7; } .tl li.spill .tm { color: var(--muted); }
   .tl li.done { opacity: .45; } .tl li.done .nm { text-decoration: line-through; }
   .tl li.noest .du { color: var(--warn); }
@@ -462,7 +471,7 @@
       <label style="margin:0">始業 <input id="cfg-wstart" type="time" value="10:00"></label>
       <label style="margin:0">終業 <input id="cfg-wend" type="time" value="19:00"></label>
       <label style="margin:0">休憩（分） <input id="cfg-wbreak" type="number" min="0" step="15" value="60"></label>
-      <label style="margin:0">タスク間の余白（分） <input id="cfg-wgap" type="number" min="0" step="5" value="10"></label>
+      <label style="margin:0">タスク間の余白（分） <input id="cfg-wgap" type="number" min="0" step="5" value="5"></label>
     </div>
     <h3>通知</h3>
     <label>⏰ の時刻になると OS の通知（Windows の通知センター／iPhone はホーム画面から起動した場合）で知らせます。ページを開いている間だけ動きます（タブが裏や最小化でも可。ブラウザを終了していると鳴りません）。</label>
@@ -542,6 +551,7 @@ const KEY = "shiden_tasks_v1", DEL_KEY = "shiden_tasks_deleted_v1", CFG_KEY = "s
 
 /* ---- バージョンと更新履歴（公開版が反映されているかの確認用。変更のたびに先頭へ追記する） ---- */
 const CHANGELOG = [
+  ["2026-10-01.4", "今日の時間配分: 予定を固定して現在時刻の線が進む。遅れ／予定どおり／前倒しを上部に表示。「⟲ 今から組み直す」。行の ○ で完了。余白の既定を5分に"],
   ["2026-10-01.3", "余裕のあるスケジューリング: AIの見積もりを1.3〜1.5倍の余裕込みに、タスク間に余白（既定10分・設定で変更）を挟む"],
   ["2026-10-01.2", "今日の時間配分: AIの進行状況を上部に表示、今日だけの出勤・退勤時刻を入力可"],
   ["2026-10-01.1", "AI応答が途中で切れる不具合を修正（出力上限を拡大、推論量を控えめに、見積もりのIDを連番化）"],
@@ -751,6 +761,14 @@ const EXCL_KEY = "shiden_tasks_today_excl";
 function todayPlan() { try { const o = JSON.parse(localStorage.getItem(EXCL_KEY)) || {}; return o.d === todayStr() ? o : {}; } catch (e) { return {}; } }
 function saveTodayPlan(patch) { localStorage.setItem(EXCL_KEY, JSON.stringify(Object.assign({ d: todayStr() }, todayPlan(), patch))); }
 function todayExcl() { return todayPlan().m || 0; }
+// スケジュールの起点（分）。AI並べ替え／「今から組み直す」で現在時刻に更新。未設定なら初回表示時に決める
+function planAnchor(wstart, wend) {
+  const pl = todayPlan(); if (pl.anchor != null) return pl.anchor;
+  const d = new Date(), nowMin = d.getHours() * 60 + d.getMinutes();
+  const a = nowMin > wstart && nowMin < wend ? Math.ceil(nowMin / 5) * 5 : wstart;
+  saveTodayPlan({ anchor: a }); return a;
+}
+function rebaseNow() { const d = new Date(); const nowMin = d.getHours() * 60 + d.getMinutes(); saveTodayPlan({ anchor: Math.ceil(nowMin / 5) * 5 }); }
 // 今日ページの並び: 期限が近い順（超過が先、期限なしは後）→ 重要度が高い順。手動で並べ替えた日は todayPos を優先
 function todayOrder(open) {
   const td = todayStr();
@@ -767,31 +785,54 @@ function nextBusinessDay() { const d = new Date(); do { d.setDate(d.getDate() + 
 function renderToday() {
   if (!document.getElementById("today-tl")) return; // 今日ページを開いているときだけ描画
   const c = getCfg(), plan = todayPlan();
-  const wstart = hm(plan.start || c.wstart || "10:00"), wend = hm(plan.end || c.wend || "19:00"), wbreak = c.wbreak == null ? 60 : c.wbreak, gap = c.wgap == null ? 10 : c.wgap; // gap＝タスク間の余白（切り替え・小休止）
+  const wstart = hm(plan.start || c.wstart || "10:00"), wend = hm(plan.end || c.wend || "19:00"), wbreak = c.wbreak == null ? 60 : c.wbreak, gap = c.wgap == null ? 5 : c.wgap; // gap＝タスク間の余白（切り替え・小休止）
   const excl = todayExcl(); document.getElementById("today-excl").value = excl || "";
   document.getElementById("today-start").value = plan.start || c.wstart || "10:00"; document.getElementById("today-end").value = plan.end || c.wend || "19:00";
   const budget = Math.max(0, wend - wstart - wbreak - excl);
   const items = db.tasks.filter(t => !isArchived(t) && isTodayTask(t));
-  const open = todayOrder(items.filter(t => !t.done)), done = items.filter(t => t.done);
+  // 完了済み（今日）も元の時間枠に残す（予定表を固定し、現在時刻の線だけが進む）
+  const open = todayOrder(items), done = [];
   const nowMin = (() => { const d = new Date(); return d.getHours() * 60 + d.getMinutes(); })();
-  // 開始は「今」（就業時間内なら。5分単位に切り上げ）、就業前なら始業時刻
-  let cur = nowMin > wstart && nowMin < wend ? Math.ceil(nowMin / 5) * 5 : wstart;
+  // 開始は「起点」（AI並べ替え／今から組み直す で更新。初回は今 or 出勤時刻）。起点を固定することで、現在時刻が予定表の上を進んでいく
+  let cur = planAnchor(wstart, wend);
+  const anchorTs = (() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d.getTime() + cur * 60000; })();
+  // 起点より前に完了したタスクは枠を使わず ✓ だけ残す。起点以降に完了したものは元の枠に残す（予定表を固定）
+  const consumes = t => !t.done || (t.doneAt || t.mt || 0) > anchorTs;
   // 期限が今日以前のタスクは必ず入れる（終業超過でも赤で表示）。期限が先のタスクは終業までに収まるときだけ入れ、収まらなければ「今日は入らない」へ
   const tdNow = todayStr();
   const placed = [], spill = []; let curP = cur;
-  open.forEach(t => { const est = (t.est || DEFAULT_EST) + gap; const must = !!t.due && t.due <= tdNow; if (must || curP + est <= wend) { placed.push(t); curP += est; } else spill.push(t); });
-  const total = placed.reduce((a, t) => a + (t.est || DEFAULT_EST) + gap, 0);
+  open.forEach(t => { const est = (t.est || DEFAULT_EST) + gap; const must = t.done || (!!t.due && t.due <= tdNow); if (must || curP + est <= wend) { placed.push(t); curP += est; } else spill.push(t); });
+  const total = placed.filter(t => !t.done).reduce((a, t) => a + (t.est || DEFAULT_EST) + gap, 0);
   const sum = document.getElementById("today-sum");
   sum.classList.toggle("over", total > budget);
-  sum.innerHTML = `<span class="n">合計 ${fmtMin(total)}</span>${gap && placed.length ? `<span style="color:var(--muted)">（余白 ${fmtMin(gap)}×${placed.length} 込み）</span>` : ""} / 使える時間 <span class="n">${fmtMin(budget)}</span>${nowMin > wstart && nowMin < wend ? `<span style="color:var(--muted)">（今から終業まで ${fmtMin(wend - cur)}）</span>` : ""}${total > budget ? ` <b style="color:var(--bad)">（${fmtMin(total - budget)} 超過）</b>` : ` <span style="color:var(--muted)">（残り ${fmtMin(budget - total)}）</span>`}<div class="bar"><i style="width:${Math.min(100, budget ? total / budget * 100 : 100)}%"></i></div>`;
+  sum.innerHTML = `<span class="n">残り ${fmtMin(total)}</span>${gap && placed.some(t => !t.done) ? `<span style="color:var(--muted)">（余白 ${fmtMin(gap)}×${placed.filter(t => !t.done).length} 込み）</span>` : ""} / 使える時間 <span class="n">${fmtMin(budget)}</span>${nowMin > wstart && nowMin < wend ? `<span style="color:var(--muted)">（今から終業まで ${fmtMin(wend - cur)}）</span>` : ""}${total > budget ? ` <b style="color:var(--bad)">（${fmtMin(total - budget)} 超過）</b>` : ` <span style="color:var(--muted)">（残り ${fmtMin(budget - total)}）</span>`}<div class="bar"><i style="width:${Math.min(100, budget ? total / budget * 100 : 100)}%"></i></div>`;
   const td = todayStr();
-  let html = placed.map((t, i) => { const est = t.est || DEFAULT_EST; const start = cur; cur += est + gap; const over = start >= wend || cur - gap > wend; const dueTxt = t.due ? `<span class="dd ${t.due < td ? "over" : (t.due === td ? "today" : "")}">📅 ${fmtDue(t.due)}</span>` : ""; return `<li class="${over ? "over" : ""} ${t.est ? "" : "noest"}" data-id="${t.id}" title="${esc(t.title)}"><span class="tm">${fmtHM(start)}</span><span class="nm">${esc(t.title)}${dueTxt}</span><span class="du">${fmtMin(est)}${t.est ? "" : "?"}</span><span class="ctl"><button data-mv="-1" title="上へ" ${i === 0 ? "disabled" : ""}>▲</button><button data-mv="1" title="下へ" ${i === open.length - 1 ? "disabled" : ""}>▼</button><button data-drop="1" title="今日から外す（期限が今日以前なら次の営業日に延期）">✕</button></span></li>`; }).join("");
-  const spillHtml = spill.length ? `<li class="tend"><span class="tm">⏸</span><span>今日は入らない（期限が先・終業までに収まらない） ${spill.length}件</span></li>` + spill.map(t => `<li class="spill" data-id="${t.id}" title="${esc(t.title)}"><span class="tm">—</span><span class="nm">${esc(t.title)}${t.due ? `<span class="dd">📅 ${fmtDue(t.due)}</span>` : ""}</span><span class="du">${fmtMin(t.est || DEFAULT_EST)}${t.est ? "" : "?"}</span><span class="ctl"><button data-drop="1" title="今日から外す">✕</button></span></li>`).join("") : "";
+  // 進捗判定: 予定終了が「今」より前なのに未完了 → 遅れ。今が入っているタスク → 進行中
+  let lateMin = 0, nowInserted = false, nowTask = null;
+  const rowsHtml = [];
+  placed.forEach((t, i) => {
+    if (!consumes(t)) { rowsHtml.push(`<li class="done" data-id="${t.id}" title="${esc(t.title)}"><span class="chk on" data-done="1" title="未完了に戻す">✓</span><span class="tm"></span><span class="nm">${esc(t.title)}</span><span class="du">${fmtMin(t.est || DEFAULT_EST)}</span></li>`); return; }
+    const est = t.est || DEFAULT_EST; const start = cur; const end = start + est; cur += est + gap; const over = start >= wend || end > wend;
+    const isNow = !t.done && nowMin >= start && nowMin < end + gap; const isLate = !t.done && end <= nowMin && !isNow; if (isLate) lateMin = Math.max(lateMin, nowMin - end); if (isNow) nowTask = t;
+    if (!nowInserted && nowMin < start && nowMin >= wstart) { rowsHtml.push(`<li class="nowline"><span></span><span class="tm">${fmtHM(nowMin)}</span><span class="ln"></span></li>`); nowInserted = true; }
+    const dueTxt = t.due ? `<span class="dd ${t.due < td ? "over" : (t.due === td ? "today" : "")}">📅 ${fmtDue(t.due)}</span>` : "";
+    rowsHtml.push(`<li class="${over && !t.done ? "over" : ""} ${t.est ? "" : "noest"} ${isNow ? "now" : ""} ${isLate ? "late" : ""} ${t.done ? "done" : ""}" data-id="${t.id}" title="${esc(t.title)}"><span class="chk ${t.done ? "on" : ""}" data-done="1" title="${t.done ? "未完了に戻す" : "完了にする"}">${t.done ? "✓" : ""}</span><span class="tm">${fmtHM(start)}</span><span class="nm">${esc(t.title)}${dueTxt}</span><span class="du">${fmtMin(est)}${t.est ? "" : "?"}</span><span class="ctl"><button data-mv="-1" title="上へ" ${i === 0 ? "disabled" : ""}>▲</button><button data-mv="1" title="下へ" ${i === open.length - 1 ? "disabled" : ""}>▼</button><button data-drop="1" title="今日から外す（期限が今日以前なら次の営業日に延期）">✕</button></span></li>`);
+  });
+  let html = rowsHtml.join("");
+  const spillHtml = spill.length ? `<li class="tend"><span></span><span class="tm">⏸</span><span>今日は入らない（期限が先・終業までに収まらない） ${spill.length}件</span></li>` + spill.map(t => `<li class="spill" data-id="${t.id}" title="${esc(t.title)}"><span class="chk" data-done="1" title="完了にする"></span><span class="tm">—</span><span class="nm">${esc(t.title)}${t.due ? `<span class="dd">📅 ${fmtDue(t.due)}</span>` : ""}</span><span class="du">${fmtMin(t.est || DEFAULT_EST)}${t.est ? "" : "?"}</span><span class="ctl"><button data-drop="1" title="今日から外す">✕</button></span></li>`).join("") : "";
   const endAt = placed.length ? cur - gap : cur; // 最後のタスクの後ろの余白は終了時刻に含めない
-  html += `<li class="tend"><span class="tm">${fmtHM(Math.min(endAt, 1439))}</span><span>${endAt > wend ? "終業 " + fmtHM(wend) + " を超過" : "終了予定（終業 " + fmtHM(wend) + "）"}</span></li>` + spillHtml;
-  html += done.map(t => `<li class="done" data-id="${t.id}"><span class="tm">✓</span><span class="nm">${esc(t.title)}</span><span class="du">${fmtMin(t.est || DEFAULT_EST)}</span></li>`).join("");
-  if (!open.length && !done.length) html = `<li class="tend"><span class="tm">—</span><span>今日の対象タスクはありません（期限が今日以前 or 重要度3以上、または詳細で「今日やる」）</span></li>`;
+  if (!nowInserted && placed.length && nowMin >= wstart && nowMin < wend) html += `<li class="nowline"><span></span><span class="tm">${fmtHM(nowMin)}</span><span class="ln"></span></li>`;
+  html += `<li class="tend"><span></span><span class="tm">${fmtHM(Math.min(endAt, 1439))}</span><span>${endAt > wend ? "終業 " + fmtHM(wend) + " を超過" : "終了予定（終業 " + fmtHM(wend) + "）"}</span></li>` + spillHtml;
+  html += done.map(t => `<li class="done" data-id="${t.id}"><span class="chk on" data-done="1" title="未完了に戻す">✓</span><span class="tm"></span><span class="nm">${esc(t.title)}</span><span class="du">${fmtMin(t.est || DEFAULT_EST)}</span></li>`).join("");
+  if (!open.length && !done.length) html = `<li class="tend"><span></span><span class="tm">—</span><span>今日の対象タスクはありません（期限が今日以前 or 重要度3以上、または詳細で「今日やる」）</span></li>`;
   document.getElementById("today-tl").innerHTML = html;
+  const prog = document.getElementById("today-prog");
+  if (!placed.length) { prog.className = "tprog"; prog.textContent = ""; }
+  else if (nowMin < wstart) { prog.className = "tprog"; prog.textContent = `出勤前。${fmtHM(wstart)} から開始予定`; }
+  else if (nowMin >= wend) { const left = placed.filter(t => !t.done).length; prog.className = "tprog " + (left ? "late" : "ok"); prog.textContent = left ? `終業を過ぎています。未完了 ${left}件` : "🎉 今日の予定はすべて完了"; }
+  else if (lateMin > 0) { prog.className = "tprog late"; prog.innerHTML = `⚠ 予定より <b>${fmtMin(lateMin)}</b> 遅れています（予定時刻を過ぎた未完了あり）。「🧩 AIで見積もり＆並べ替え」か「⟲ 今から組み直す」で今の時刻から再構成できます`; }
+  else if (nowTask) { prog.className = "tprog ok"; prog.textContent = `✅ 予定どおり。いま: ${nowTask.title}`; }
+  else { const nx = placed.find(t => !t.done); prog.className = "tprog ahead"; prog.textContent = nx ? `🎉 予定より早く進んでいます。次: ${nx.title}` : "🎉 今日の予定はすべて完了"; }
   document.getElementById("today-est").hidden = !getCfg().openai || !open.length;
 }
 document.getElementById("tasks").addEventListener("change", e => {
@@ -825,7 +866,7 @@ async function aiEstimateToday() {
     if (Array.isArray(j.order)) { j.order.forEach(id => { const t = sid.get(String(id)); if (t && !ordered.includes(t)) ordered.push(t); }); all.forEach(t => { if (!ordered.includes(t)) ordered.push(t); }); }
     else ordered = all;
     const must = ordered.filter(t => t.due && t.due <= td), rest = ordered.filter(t => !(t.due && t.due <= td));
-    saveTodayOrder([...must, ...rest]);
+    saveTodayOrder([...must, ...rest]); rebaseNow(); // 今の時刻を起点に組み直す
     render(); const st2 = document.getElementById("today-status"); if (st2) { st2.textContent = `✅ ${n}件を見積もり、系統ごとに並べ替えました（▲▼で調整できます）`; setTimeout(() => { if (st2.textContent.includes("並べ替えました")) st2.textContent = ""; }, 6000); }
   } catch (e) { if (e.name !== "AbortError") { st.classList.add("err"); st.textContent = "失敗: " + e.message; } const b2 = document.getElementById("today-est"); if (b2) { b2.disabled = false; b2.textContent = "🧩 AIで見積もり＆並べ替え"; } }
 }
@@ -954,7 +995,8 @@ function renderList() {
   if (view === "today") {
     tagFilter = null; document.getElementById("tagbar").hidden = true; document.getElementById("sort-btn").hidden = true;
     document.getElementById("tasks").innerHTML = `<section class="today" id="today">
-        <div class="th"><span class="tt">今日やるタスクを、現在時刻から順に積み上げています</span><button class="ibtn small" id="today-est" type="button" title="所要時間をAIで見積もり、系統の似たタスクを隣に並べる">🧩 AIで見積もり＆並べ替え</button></div>
+        <div class="th"><span class="tt">今日やるタスクを、現在時刻から順に積み上げています</span><button class="ibtn small" id="today-rebase" type="button" title="今の時刻を起点に、残りのタスクの開始時刻を組み直す（順序はそのまま）">⟲ 今から組み直す</button><button class="ibtn small" id="today-est" type="button" title="所要時間をAIで見積もり、系統の似たタスクを隣に並べる。今の時刻を起点に組み直す">🧩 AIで見積もり＆並べ替え</button></div>
+        <div class="tprog" id="today-prog"></div>
         <div class="tstat" id="today-status"></div>
         <div class="texcl"><label>出勤 <input type="time" id="today-start"></label><label>退勤 <input type="time" id="today-end"></label><label>除外 <input type="number" id="today-excl" min="0" step="15" placeholder="0"> 分</label><span class="hint">今日だけの予定。会議などは除外に</span></div>
         <div class="tsum" id="today-sum"></div>
@@ -1292,9 +1334,11 @@ document.getElementById("tagbar").addEventListener("click", e => {
 });
 document.getElementById("tasks").addEventListener("click", e => {
   if (e.target.closest("#today-est")) { aiEstimateToday(); return; }
+  if (e.target.closest("#today-rebase")) { rebaseNow(); renderToday(); return; }
   const tli = e.target.closest("#today-tl li[data-id]");
   if (tli) {
-    const t = task(tli.dataset.id); const mv = e.target.closest("[data-mv]"), drop = e.target.closest("[data-drop]");
+    const t = task(tli.dataset.id); const mv = e.target.closest("[data-mv]"), drop = e.target.closest("[data-drop]"), dn = e.target.closest("[data-done]");
+    if (dn) { t.done = !t.done; t.doneAt = t.done ? now() : null; touch(t); render(); return; }
     if (mv) {
       const list = todayOrder(db.tasks.filter(x => !isArchived(x) && isTodayTask(x) && !x.done));
       const i = list.indexOf(t), j = i + Number(mv.dataset.mv); if (j < 0 || j >= list.length) return;
@@ -1404,6 +1448,7 @@ function checkReminders() {
   if (changed) { save(db); scheduleSync(); render(); }
 }
 setInterval(checkReminders, 30000);
+setInterval(() => { if (view === "today" && !document.hidden) renderToday(); }, 60000); // 現在時刻の線を1分ごとに進める
 checkReminders();
 
 function bindDetail(t) {
@@ -1556,7 +1601,7 @@ function fillCfg() {
   document.getElementById("cfg-token").value = c.token || "";
   document.getElementById("cfg-openai").value = c.openai || "";
   document.getElementById("cfg-model").value = c.model || "gpt-5-mini";
-  document.getElementById("cfg-wstart").value = c.wstart || "10:00"; document.getElementById("cfg-wend").value = c.wend || "19:00"; document.getElementById("cfg-wbreak").value = c.wbreak == null ? 60 : c.wbreak; document.getElementById("cfg-wgap").value = c.wgap == null ? 10 : c.wgap;
+  document.getElementById("cfg-wstart").value = c.wstart || "10:00"; document.getElementById("cfg-wend").value = c.wend || "19:00"; document.getElementById("cfg-wbreak").value = c.wbreak == null ? 60 : c.wbreak; document.getElementById("cfg-wgap").value = c.wgap == null ? 5 : c.wgap;
 }
 document.getElementById("gh-config").addEventListener("click", () => { fillCfg(); panel.classList.add("open"); });
 document.getElementById("cfg-close").addEventListener("click", () => panel.classList.remove("open"));
