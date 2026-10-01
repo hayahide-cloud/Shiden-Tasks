@@ -462,6 +462,7 @@
       <label style="margin:0">始業 <input id="cfg-wstart" type="time" value="10:00"></label>
       <label style="margin:0">終業 <input id="cfg-wend" type="time" value="19:00"></label>
       <label style="margin:0">休憩（分） <input id="cfg-wbreak" type="number" min="0" step="15" value="60"></label>
+      <label style="margin:0">タスク間の余白（分） <input id="cfg-wgap" type="number" min="0" step="5" value="10"></label>
     </div>
     <h3>通知</h3>
     <label>⏰ の時刻になると OS の通知（Windows の通知センター／iPhone はホーム画面から起動した場合）で知らせます。ページを開いている間だけ動きます（タブが裏や最小化でも可。ブラウザを終了していると鳴りません）。</label>
@@ -541,6 +542,7 @@ const KEY = "shiden_tasks_v1", DEL_KEY = "shiden_tasks_deleted_v1", CFG_KEY = "s
 
 /* ---- バージョンと更新履歴（公開版が反映されているかの確認用。変更のたびに先頭へ追記する） ---- */
 const CHANGELOG = [
+  ["2026-10-01.3", "余裕のあるスケジューリング: AIの見積もりを1.3〜1.5倍の余裕込みに、タスク間に余白（既定10分・設定で変更）を挟む"],
   ["2026-10-01.2", "今日の時間配分: AIの進行状況を上部に表示、今日だけの出勤・退勤時刻を入力可"],
   ["2026-10-01.1", "AI応答が途中で切れる不具合を修正（出力上限を拡大、推論量を控えめに、見積もりのIDを連番化）"],
   ["2026-09-30.104", "今日の並び: 単純・軽いタスク（確認／対応／返信・短時間）を始業側に、重いタスクを後ろに（AI・既定の両方）"],
@@ -765,7 +767,7 @@ function nextBusinessDay() { const d = new Date(); do { d.setDate(d.getDate() + 
 function renderToday() {
   if (!document.getElementById("today-tl")) return; // 今日ページを開いているときだけ描画
   const c = getCfg(), plan = todayPlan();
-  const wstart = hm(plan.start || c.wstart || "10:00"), wend = hm(plan.end || c.wend || "19:00"), wbreak = c.wbreak == null ? 60 : c.wbreak;
+  const wstart = hm(plan.start || c.wstart || "10:00"), wend = hm(plan.end || c.wend || "19:00"), wbreak = c.wbreak == null ? 60 : c.wbreak, gap = c.wgap == null ? 10 : c.wgap; // gap＝タスク間の余白（切り替え・小休止）
   const excl = todayExcl(); document.getElementById("today-excl").value = excl || "";
   document.getElementById("today-start").value = plan.start || c.wstart || "10:00"; document.getElementById("today-end").value = plan.end || c.wend || "19:00";
   const budget = Math.max(0, wend - wstart - wbreak - excl);
@@ -777,13 +779,13 @@ function renderToday() {
   // 期限が今日以前のタスクは必ず入れる（終業超過でも赤で表示）。期限が先のタスクは終業までに収まるときだけ入れ、収まらなければ「今日は入らない」へ
   const tdNow = todayStr();
   const placed = [], spill = []; let curP = cur;
-  open.forEach(t => { const est = t.est || DEFAULT_EST; const must = !!t.due && t.due <= tdNow; if (must || curP + est <= wend) { placed.push(t); curP += est; } else spill.push(t); });
-  const total = placed.reduce((a, t) => a + (t.est || DEFAULT_EST), 0);
+  open.forEach(t => { const est = (t.est || DEFAULT_EST) + gap; const must = !!t.due && t.due <= tdNow; if (must || curP + est <= wend) { placed.push(t); curP += est; } else spill.push(t); });
+  const total = placed.reduce((a, t) => a + (t.est || DEFAULT_EST) + gap, 0);
   const sum = document.getElementById("today-sum");
   sum.classList.toggle("over", total > budget);
-  sum.innerHTML = `<span class="n">合計 ${fmtMin(total)}</span> / 使える時間 <span class="n">${fmtMin(budget)}</span>${nowMin > wstart && nowMin < wend ? `<span style="color:var(--muted)">（今から終業まで ${fmtMin(wend - cur)}）</span>` : ""}${total > budget ? ` <b style="color:var(--bad)">（${fmtMin(total - budget)} 超過）</b>` : ` <span style="color:var(--muted)">（残り ${fmtMin(budget - total)}）</span>`}<div class="bar"><i style="width:${Math.min(100, budget ? total / budget * 100 : 100)}%"></i></div>`;
+  sum.innerHTML = `<span class="n">合計 ${fmtMin(total)}</span>${gap && placed.length ? `<span style="color:var(--muted)">（余白 ${fmtMin(gap)}×${placed.length} 込み）</span>` : ""} / 使える時間 <span class="n">${fmtMin(budget)}</span>${nowMin > wstart && nowMin < wend ? `<span style="color:var(--muted)">（今から終業まで ${fmtMin(wend - cur)}）</span>` : ""}${total > budget ? ` <b style="color:var(--bad)">（${fmtMin(total - budget)} 超過）</b>` : ` <span style="color:var(--muted)">（残り ${fmtMin(budget - total)}）</span>`}<div class="bar"><i style="width:${Math.min(100, budget ? total / budget * 100 : 100)}%"></i></div>`;
   const td = todayStr();
-  let html = placed.map((t, i) => { const est = t.est || DEFAULT_EST; const start = cur; cur += est; const over = start >= wend || cur > wend; const dueTxt = t.due ? `<span class="dd ${t.due < td ? "over" : (t.due === td ? "today" : "")}">📅 ${fmtDue(t.due)}</span>` : ""; return `<li class="${over ? "over" : ""} ${t.est ? "" : "noest"}" data-id="${t.id}" title="${esc(t.title)}"><span class="tm">${fmtHM(start)}</span><span class="nm">${esc(t.title)}${dueTxt}</span><span class="du">${fmtMin(est)}${t.est ? "" : "?"}</span><span class="ctl"><button data-mv="-1" title="上へ" ${i === 0 ? "disabled" : ""}>▲</button><button data-mv="1" title="下へ" ${i === open.length - 1 ? "disabled" : ""}>▼</button><button data-drop="1" title="今日から外す（期限が今日以前なら次の営業日に延期）">✕</button></span></li>`; }).join("");
+  let html = placed.map((t, i) => { const est = t.est || DEFAULT_EST; const start = cur; cur += est + gap; const over = start >= wend || cur - gap > wend; const dueTxt = t.due ? `<span class="dd ${t.due < td ? "over" : (t.due === td ? "today" : "")}">📅 ${fmtDue(t.due)}</span>` : ""; return `<li class="${over ? "over" : ""} ${t.est ? "" : "noest"}" data-id="${t.id}" title="${esc(t.title)}"><span class="tm">${fmtHM(start)}</span><span class="nm">${esc(t.title)}${dueTxt}</span><span class="du">${fmtMin(est)}${t.est ? "" : "?"}</span><span class="ctl"><button data-mv="-1" title="上へ" ${i === 0 ? "disabled" : ""}>▲</button><button data-mv="1" title="下へ" ${i === open.length - 1 ? "disabled" : ""}>▼</button><button data-drop="1" title="今日から外す（期限が今日以前なら次の営業日に延期）">✕</button></span></li>`; }).join("");
   const spillHtml = spill.length ? `<li class="tend"><span class="tm">⏸</span><span>今日は入らない（期限が先・終業までに収まらない） ${spill.length}件</span></li>` + spill.map(t => `<li class="spill" data-id="${t.id}" title="${esc(t.title)}"><span class="tm">—</span><span class="nm">${esc(t.title)}${t.due ? `<span class="dd">📅 ${fmtDue(t.due)}</span>` : ""}</span><span class="du">${fmtMin(t.est || DEFAULT_EST)}${t.est ? "" : "?"}</span><span class="ctl"><button data-drop="1" title="今日から外す">✕</button></span></li>`).join("") : "";
   html += `<li class="tend"><span class="tm">${fmtHM(Math.min(cur, 1439))}</span><span>${cur > wend ? "終業 " + fmtHM(wend) + " を超過" : "終了予定（終業 " + fmtHM(wend) + "）"}</span></li>` + spillHtml;
   html += done.map(t => `<li class="done" data-id="${t.id}"><span class="tm">✓</span><span class="nm">${esc(t.title)}</span><span class="du">${fmtMin(t.est || DEFAULT_EST)}</span></li>`).join("");
@@ -797,7 +799,7 @@ document.getElementById("tasks").addEventListener("change", e => {
   if (e.target.id === "today-end") { saveTodayPlan({ end: e.target.value || "" }); renderToday(); }
 });
 const SYS_EST = `あなたはADHD特性のある人の「今日の段取り」を組むアシスタントです。与えられた今日のタスク一覧について、次の2つを行ってください。
-1) 所要時間の見積もり: est が未設定のタスクについて、集中して取り組んだ場合の現実的な所要時間を分単位（5分刻み、5〜240）で。返信や確認は短め、成果物作成や検討は長め
+1) 所要時間の見積もり: est が未設定のタスクについて、分単位（5分刻み、5〜240）で。余裕を持った見積もりにする（割り込み・確認・手戻りを含め、理想的な作業時間の1.3〜1.5倍程度。短すぎる見積もりは厳禁）。返信や確認は短め、成果物作成や検討は長め
 2) 実行順の提案（order に全タスクの id を実行順で並べる）:
 - 「期限が今日以前」のタスク（must=true）は必ず先頭側にまとめる（超過→今日の順）。must=false はその後
 - must の中でも、must 以外の中でも、単純で軽いタスク（種別が 確認／対応／返信、所要時間が短いもの）を始業側（先頭側）に置き、頭を使う重いタスク（成果物作成／検討／調査）は後ろに置く。ウォームアップとして軽いものから片付ける
@@ -1553,7 +1555,7 @@ function fillCfg() {
   document.getElementById("cfg-token").value = c.token || "";
   document.getElementById("cfg-openai").value = c.openai || "";
   document.getElementById("cfg-model").value = c.model || "gpt-5-mini";
-  document.getElementById("cfg-wstart").value = c.wstart || "10:00"; document.getElementById("cfg-wend").value = c.wend || "19:00"; document.getElementById("cfg-wbreak").value = c.wbreak == null ? 60 : c.wbreak;
+  document.getElementById("cfg-wstart").value = c.wstart || "10:00"; document.getElementById("cfg-wend").value = c.wend || "19:00"; document.getElementById("cfg-wbreak").value = c.wbreak == null ? 60 : c.wbreak; document.getElementById("cfg-wgap").value = c.wgap == null ? 10 : c.wgap;
 }
 document.getElementById("gh-config").addEventListener("click", () => { fillCfg(); panel.classList.add("open"); });
 document.getElementById("cfg-close").addEventListener("click", () => panel.classList.remove("open"));
@@ -1563,7 +1565,7 @@ document.getElementById("cfg-save").addEventListener("click", () => {
     path: document.getElementById("cfg-path").value.trim() || "tasks.json", branch: document.getElementById("cfg-branch").value.trim() || "main",
     token: document.getElementById("cfg-token").value.trim(),
     openai: document.getElementById("cfg-openai").value.trim(), model: document.getElementById("cfg-model").value,
-    wstart: document.getElementById("cfg-wstart").value || "10:00", wend: document.getElementById("cfg-wend").value || "19:00", wbreak: Number(document.getElementById("cfg-wbreak").value) || 0,
+    wstart: document.getElementById("cfg-wstart").value || "10:00", wend: document.getElementById("cfg-wend").value || "19:00", wbreak: Number(document.getElementById("cfg-wbreak").value) || 0, wgap: Number(document.getElementById("cfg-wgap").value) || 0,
   });
   panel.classList.remove("open"); render(); sync();
 });
