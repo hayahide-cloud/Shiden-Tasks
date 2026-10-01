@@ -127,8 +127,10 @@
   .tl .tend { background: transparent; color: var(--muted); cursor: default; font-size: 13px; }
   .tl li .tm { font-size: 15px; }
   .today .tt { font-size: 15px; } .tsum { font-size: 13.5px; } .tsum .bar { height: 8px; } .texcl { font-size: 13px; }
+  .tstat { margin: 0 0 8px; padding: 8px 10px; border-radius: 6px; background: rgba(124,58,237,0.14); border: 1px solid rgba(168,120,255,0.35); color: #fff; font-size: 13px; }
   .tstat:empty { display: none; }
-  .tstat.err { color: var(--bad); }
+  .tstat.err { color: var(--bad); background: rgba(248,113,113,0.1); border-color: rgba(248,113,113,0.4); }
+  .texcl { flex-wrap: wrap; } .texcl input[type=time] { width: auto; text-align: left; }
 
   .newlist-wrap { flex: none; border-top: 1px solid var(--grid); padding: 6px; }
   .newlist-btn { width: 100%; display: flex; align-items: center; gap: 12px; padding: 9px 12px; border: none; background: transparent; color: var(--accent-hi); font-size: 14px; cursor: pointer; border-radius: 4px; text-align: left; }
@@ -539,6 +541,7 @@ const KEY = "shiden_tasks_v1", DEL_KEY = "shiden_tasks_deleted_v1", CFG_KEY = "s
 
 /* ---- バージョンと更新履歴（公開版が反映されているかの確認用。変更のたびに先頭へ追記する） ---- */
 const CHANGELOG = [
+  ["2026-10-01.2", "今日の時間配分: AIの進行状況を上部に表示、今日だけの出勤・退勤時刻を入力可"],
   ["2026-10-01.1", "AI応答が途中で切れる不具合を修正（出力上限を拡大、推論量を控えめに、見積もりのIDを連番化）"],
   ["2026-09-30.104", "今日の並び: 単純・軽いタスク（確認／対応／返信・短時間）を始業側に、重いタスクを後ろに（AI・既定の両方）"],
   ["2026-09-30.103", "AIで見積もり＆並べ替え: 所要時間と同時に、期限が今日以前を先頭に保ちつつ系統の似たタスクを隣接させた順序を適用"],
@@ -741,8 +744,11 @@ function isTodayTask(t) {
 }
 function hm(str) { const [h, m] = (str || "0:0").split(":").map(Number); return h * 60 + m; }
 function fmtHM(min) { min = ((min % 1440) + 1440) % 1440; return String(Math.floor(min / 60)).padStart(2, "0") + ":" + String(min % 60).padStart(2, "0"); }
+// 今日だけの予定（出勤・退勤・除外分）。端末ごと・当日のみ有効。未入力は設定の既定値
 const EXCL_KEY = "shiden_tasks_today_excl";
-function todayExcl() { try { const o = JSON.parse(localStorage.getItem(EXCL_KEY)) || {}; return o.d === todayStr() ? (o.m || 0) : 0; } catch (e) { return 0; } }
+function todayPlan() { try { const o = JSON.parse(localStorage.getItem(EXCL_KEY)) || {}; return o.d === todayStr() ? o : {}; } catch (e) { return {}; } }
+function saveTodayPlan(patch) { localStorage.setItem(EXCL_KEY, JSON.stringify(Object.assign({ d: todayStr() }, todayPlan(), patch))); }
+function todayExcl() { return todayPlan().m || 0; }
 // 今日ページの並び: 期限が近い順（超過が先、期限なしは後）→ 重要度が高い順。手動で並べ替えた日は todayPos を優先
 function todayOrder(open) {
   const td = todayStr();
@@ -758,8 +764,10 @@ function saveTodayOrder(list) { const td = todayStr(); list.forEach((t, i) => { 
 function nextBusinessDay() { const d = new Date(); do { d.setDate(d.getDate() + 1); } while (d.getDay() === 0 || d.getDay() === 6); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
 function renderToday() {
   if (!document.getElementById("today-tl")) return; // 今日ページを開いているときだけ描画
-  const c = getCfg(); const wstart = hm(c.wstart || "10:00"), wend = hm(c.wend || "19:00"), wbreak = c.wbreak == null ? 60 : c.wbreak;
+  const c = getCfg(), plan = todayPlan();
+  const wstart = hm(plan.start || c.wstart || "10:00"), wend = hm(plan.end || c.wend || "19:00"), wbreak = c.wbreak == null ? 60 : c.wbreak;
   const excl = todayExcl(); document.getElementById("today-excl").value = excl || "";
+  document.getElementById("today-start").value = plan.start || c.wstart || "10:00"; document.getElementById("today-end").value = plan.end || c.wend || "19:00";
   const budget = Math.max(0, wend - wstart - wbreak - excl);
   const items = db.tasks.filter(t => !isArchived(t) && isTodayTask(t));
   const open = todayOrder(items.filter(t => !t.done)), done = items.filter(t => t.done);
@@ -783,7 +791,11 @@ function renderToday() {
   document.getElementById("today-tl").innerHTML = html;
   document.getElementById("today-est").hidden = !getCfg().openai || !open.length;
 }
-document.getElementById("tasks").addEventListener("change", e => { if (e.target.id === "today-excl") { localStorage.setItem(EXCL_KEY, JSON.stringify({ d: todayStr(), m: Number(e.target.value) || 0 })); renderToday(); } });
+document.getElementById("tasks").addEventListener("change", e => {
+  if (e.target.id === "today-excl") { saveTodayPlan({ m: Number(e.target.value) || 0 }); renderToday(); }
+  if (e.target.id === "today-start") { saveTodayPlan({ start: e.target.value || "" }); renderToday(); }
+  if (e.target.id === "today-end") { saveTodayPlan({ end: e.target.value || "" }); renderToday(); }
+});
 const SYS_EST = `あなたはADHD特性のある人の「今日の段取り」を組むアシスタントです。与えられた今日のタスク一覧について、次の2つを行ってください。
 1) 所要時間の見積もり: est が未設定のタスクについて、集中して取り組んだ場合の現実的な所要時間を分単位（5分刻み、5〜240）で。返信や確認は短め、成果物作成や検討は長め
 2) 実行順の提案（order に全タスクの id を実行順で並べる）:
@@ -798,7 +810,8 @@ async function aiEstimateToday() {
   const all = todayOrder(db.tasks.filter(t => !isArchived(t) && isTodayTask(t) && !t.done));
   if (!all.length) return;
   const td = todayStr();
-  const st = document.getElementById("today-status"); st.classList.remove("err"); st.innerHTML = "<span class='spin'></span>所要時間を見積もり、並び順を考えています…";
+  const st = document.getElementById("today-status"); st.classList.remove("err"); st.innerHTML = "<span class='spin'></span>AIが所要時間を見積もり、並び順を考えています…（10〜30秒）";
+  const btn = document.getElementById("today-est"); if (btn) { btn.disabled = true; btn.textContent = "⏳ 考え中…"; }
   try {
     const sid = new Map(all.map((t, i) => [String(i + 1), t])); // 出力を短くするため id は連番で渡す
     const user = all.map((t, i) => `id: ${i + 1}\nタスク: ${t.title}\nmust: ${!!t.due && t.due <= td}${t.due ? "\n期限: " + t.due : ""}${t.est ? "\nest: " + t.est : ""}${(t.tags || []).length ? "\nタグ: " + t.tags.join(", ") : ""}${t.steps.length ? "\nステップ: " + t.steps.map(x => x.title).join(" / ") : ""}${t.note ? "\nメモ: " + t.note : ""}`).join("\n\n");
@@ -810,8 +823,8 @@ async function aiEstimateToday() {
     else ordered = all;
     const must = ordered.filter(t => t.due && t.due <= td), rest = ordered.filter(t => !(t.due && t.due <= td));
     saveTodayOrder([...must, ...rest]);
-    render(); st.textContent = `${n}件を見積もり、系統ごとに並べ替えました（▲▼で調整できます）`; setTimeout(() => { if (st.textContent.includes("並べ替えました")) st.textContent = ""; }, 6000);
-  } catch (e) { if (e.name !== "AbortError") { st.classList.add("err"); st.textContent = "失敗: " + e.message; } }
+    render(); const st2 = document.getElementById("today-status"); if (st2) { st2.textContent = `✅ ${n}件を見積もり、系統ごとに並べ替えました（▲▼で調整できます）`; setTimeout(() => { if (st2.textContent.includes("並べ替えました")) st2.textContent = ""; }, 6000); }
+  } catch (e) { if (e.name !== "AbortError") { st.classList.add("err"); st.textContent = "失敗: " + e.message; } const b2 = document.getElementById("today-est"); if (b2) { b2.disabled = false; b2.textContent = "🧩 AIで見積もり＆並べ替え"; } }
 }
 
 function isImportant(t) { return (t.priority || 0) >= 3; } // 重要＝重要度3以上
@@ -939,10 +952,10 @@ function renderList() {
     tagFilter = null; document.getElementById("tagbar").hidden = true; document.getElementById("sort-btn").hidden = true;
     document.getElementById("tasks").innerHTML = `<section class="today" id="today">
         <div class="th"><span class="tt">今日やるタスクを、現在時刻から順に積み上げています</span><button class="ibtn small" id="today-est" type="button" title="所要時間をAIで見積もり、系統の似たタスクを隣に並べる">🧩 AIで見積もり＆並べ替え</button></div>
+        <div class="tstat" id="today-status"></div>
+        <div class="texcl"><label>出勤 <input type="time" id="today-start"></label><label>退勤 <input type="time" id="today-end"></label><label>除外 <input type="number" id="today-excl" min="0" step="15" placeholder="0"> 分</label><span class="hint">今日だけの予定。会議などは除外に</span></div>
         <div class="tsum" id="today-sum"></div>
-        <div class="texcl"><label>除外 <input type="number" id="today-excl" min="0" step="15" placeholder="0"> 分</label><span class="hint">会議など、今日だけ差し引く時間</span></div>
         <ol class="tl" id="today-tl"></ol>
-        <div class="hint tstat" id="today-status"></div>
         <div class="hint" style="margin-top:10px">対象: 期限が今日以前 または 重要度3以上（プライベート除く）。詳細の「今日やる／今日は外す」で調整。所要時間は詳細の ⏱ で修正できます。始業・終業・休憩は ⚙️ 設定。</div>
       </section>`;
     renderToday(); return;
