@@ -554,6 +554,7 @@ const KEY = "shiden_tasks_v1", DEL_KEY = "shiden_tasks_deleted_v1", CFG_KEY = "s
 
 /* ---- バージョンと更新履歴（公開版が反映されているかの確認用。変更のたびに先頭へ追記する） ---- */
 const CHANGELOG = [
+  ["2026-10-06.1", "今日の時間配分からもタスクを追加できる（期限は自動で今日）"],
   ["2026-10-05.2", "詳細表示中のタスクを枠線で強調。PCでは ↑↓ キーで前後のタスクに移動"],
   ["2026-10-05.1", "今日の時間配分: PCで詳細を表示中は行クリックでそのタスクに切り替え（入れ替えモードは詳細を閉じているときだけ）"],
   ["2026-10-01.13", "今日の時間配分の対象を「期限が今日以前のタスク」のみに（重要度では入れない）"],
@@ -985,7 +986,8 @@ function renderList() {
   // フィルタなしの既定表示ではプライベートを隠す（何かフィルタを掛けたときだけ登場する）
   const hiddenPriv = tagFilter ? 0 : ts.filter(t => isPriv(t) && !t.done).length;
   if (!tagFilter) ts = ts.filter(t => !isPriv(t));
-  document.querySelector(".add").hidden = view === "archive" || view === "today"; document.getElementById("list-date").textContent = view === "archive" ? "前日以前に完了したタスク" : document.getElementById("list-date").textContent;
+  document.querySelector(".add").hidden = view === "archive";
+  document.getElementById("add-input").placeholder = view === "today" ? "今日のタスクを追加（期限は今日になります）" : "タスクの追加"; document.getElementById("list-date").textContent = view === "archive" ? "前日以前に完了したタスク" : document.getElementById("list-date").textContent;
   const open = sortOpen(ts.filter(t => !t.done));
   document.getElementById("sort-lbl").textContent = SORT_LBL[sortCfg.key] + "・" + DIR_LBL[sortCfg.key][sortCfg.dir === "asc" ? 1 : 0];
   document.querySelector("#sort-pop [data-dir=desc]").textContent = DIR_LBL[sortCfg.key][0];
@@ -1398,7 +1400,7 @@ function submitAdd() {
   const input = document.getElementById("add-input");
   const v = input.value.trim(); if (!v) return;
   const dueIn = document.getElementById("add-due-in"), remIn = document.getElementById("add-remind-in");
-  const t = addTask(v, null, { due: dueIn.value, remind: remIn.value }); if (addNoDue && !dueIn.value) t.noDue = true; if (addPrivate) t.tags = ["プライベート"]; if (addNoDue || addPrivate) save(db); input.value = "";
+  const t = addTask(v, null, { due: dueIn.value || (view === "today" && !addNoDue ? todayStr() : ""), remind: remIn.value }); if (addNoDue && !dueIn.value) t.noDue = true; // 今日の時間配分から追加したタスクは期限＝今日 if (addPrivate) t.tags = ["プライベート"]; if (addNoDue || addPrivate) save(db); input.value = "";
   dueIn.value = ""; remIn.value = ""; addNoDue = false; addPrivate = false; renderAddTools();
   // 追加時は詳細を開かず一覧に足すだけ（PC・スマホ共通）。AIの問い返しは裏で走り、行に「⚡ 回答待ち」が付く
   selectedId = t.id; if (!isMobile()) panes.detail = true; // 追加直後に詳細を開き、タグ・重要度・期限をその場で付ける（PC・スマホ共通）
