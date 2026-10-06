@@ -1400,7 +1400,8 @@ function submitAdd() {
   const input = document.getElementById("add-input");
   const v = input.value.trim(); if (!v) return;
   const dueIn = document.getElementById("add-due-in"), remIn = document.getElementById("add-remind-in");
-  const t = addTask(v, null, { due: dueIn.value || (view === "today" && !addNoDue ? todayStr() : ""), remind: remIn.value }); if (addNoDue && !dueIn.value) t.noDue = true; // 今日の時間配分から追加したタスクは期限＝今日 if (addPrivate) t.tags = ["プライベート"]; if (addNoDue || addPrivate) save(db); input.value = "";
+  // 今日の時間配分から追加したタスクは期限＝今日（期限なし指定時を除く）
+  const t = addTask(v, null, { due: dueIn.value || (view === "today" && !addNoDue ? todayStr() : ""), remind: remIn.value }); if (addNoDue && !dueIn.value) t.noDue = true; if (addPrivate) t.tags = ["プライベート"]; if (addNoDue || addPrivate) save(db); input.value = "";
   dueIn.value = ""; remIn.value = ""; addNoDue = false; addPrivate = false; renderAddTools();
   // 追加時は詳細を開かず一覧に足すだけ（PC・スマホ共通）。AIの問い返しは裏で走り、行に「⚡ 回答待ち」が付く
   selectedId = t.id; if (!isMobile()) panes.detail = true; // 追加直後に詳細を開き、タグ・重要度・期限をその場で付ける（PC・スマホ共通）
