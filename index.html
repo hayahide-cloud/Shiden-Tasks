@@ -114,7 +114,10 @@
   .tl li .ctl button:disabled { opacity: .3; cursor: default; }
   .tl li .ctl button[data-drop] { color: var(--bad); }
   .tl li .ctl button.openbtn { width: auto; padding: 0 10px; color: var(--accent-hi); }
-  .tl li .nm .dd { display: block; font-size: 12px; color: var(--muted); font-weight: 400; }
+  .tl li .nm .dd { display: inline-block; margin-right: 8px; font-size: 12px; color: var(--muted); font-weight: 400; }
+  .tl li .nm .tg { display: inline-flex; gap: 4px; flex-wrap: wrap; vertical-align: middle; } .tl li .nm .tg .tag { font-size: 10.5px; padding: 2px 6px; }
+  .tl li .nm .dd, .tl li .nm .tg { line-height: 1.6; }
+  .tl li .nm { white-space: normal; }
   .tl li .nm .dd.over { color: var(--bad); } .tl li .nm .dd.today { color: var(--accent-hi); }
   .tl li { display: grid; grid-template-columns: 56px 1fr auto auto; gap: 10px; align-items: center; padding: 10px 12px; border-radius: 6px; background: var(--row); cursor: pointer; font-size: 15px; }
   .tl li .tm { color: var(--accent-hi); font-variant-numeric: tabular-nums; font-weight: 600; }
@@ -554,6 +557,7 @@ const KEY = "shiden_tasks_v1", DEL_KEY = "shiden_tasks_deleted_v1", CFG_KEY = "s
 
 /* ---- バージョンと更新履歴（公開版が反映されているかの確認用。変更のたびに先頭へ追記する） ---- */
 const CHANGELOG = [
+  ["2026-10-08.1", "今日の時間配分の行にタグを表示"],
   ["2026-10-06.1", "今日の時間配分からもタスクを追加できる（期限は自動で今日）"],
   ["2026-10-05.2", "詳細表示中のタスクを枠線で強調。PCでは ↑↓ キーで前後のタスクに移動"],
   ["2026-10-05.1", "今日の時間配分: PCで詳細を表示中は行クリックでそのタスクに切り替え（入れ替えモードは詳細を閉じているときだけ）"],
@@ -834,11 +838,12 @@ function renderToday() {
     const est = t.est || DEFAULT_EST; const start = cur; const end = start + est; cur += est + gap; const over = start >= wend || end > wend;
     const isNow = !t.done && nowMin >= start && nowMin < end + gap; const isLate = !t.done && end <= nowMin && !isNow; if (isLate) lateMin = Math.max(lateMin, nowMin - end); if (isNow) nowTask = t;
     if (!nowInserted && nowMin < start && nowMin >= wstart) { rowsHtml.push(`<li class="nowline"><span></span><span class="tm">${fmtHM(nowMin)}</span><span class="ln"></span></li>`); nowInserted = true; }
-    const dueTxt = t.due ? `<span class="dd ${t.due < td ? "over" : (t.due === td ? "today" : "")}">📅 ${fmtDue(t.due)}</span>` : "";
+    const tagsTxt = sortTags(t.tags).map(g => tagChip(g)).join("");
+    const dueTxt = (t.due ? `<span class="dd ${t.due < td ? "over" : (t.due === td ? "today" : "")}">📅 ${fmtDue(t.due)}</span>` : "") + (tagsTxt ? `<span class="tg">${tagsTxt}</span>` : "");
     rowsHtml.push(`<li class="${over && !t.done ? "over" : ""} ${t.est ? "" : "noest"} ${isNow ? "now" : ""} ${isLate ? "late" : ""} ${t.done ? "done" : ""} ${todayPick === t.id ? "picked" : ""} ${selectedId === t.id ? "sel" : ""}" data-id="${t.id}" title="${esc(t.title)}"><span class="chk ${t.done ? "on" : ""}" data-done="1" title="${t.done ? "未完了に戻す" : "完了にする"}">${t.done ? "✓" : ""}</span><span class="tm">${fmtHM(start)}</span><span class="nm">${esc(t.title)}${dueTxt}</span><span class="du">${fmtMin(est)}${t.est ? "" : "?"}</span><span class="ctl"><button data-open="1" class="openbtn" title="詳細を開く">詳細</button><button data-drop="1" title="今日から外す（期限が今日以前なら次の営業日に延期）">✕</button></span></li>`);
   });
   let html = rowsHtml.join("");
-  const spillHtml = spill.length ? `<li class="tend"><span></span><span class="tm">⏸</span><span>今日は入らない（期限が先・終業までに収まらない） ${spill.length}件</span></li>` + spill.map(t => `<li class="spill" data-id="${t.id}" title="${esc(t.title)}"><span class="chk" data-done="1" title="完了にする"></span><span class="tm">—</span><span class="nm">${esc(t.title)}${t.due ? `<span class="dd">📅 ${fmtDue(t.due)}</span>` : ""}</span><span class="du">${fmtMin(t.est || DEFAULT_EST)}${t.est ? "" : "?"}</span><span class="ctl"><button data-open="1" class="openbtn" title="詳細を開く">詳細</button><button data-drop="1" title="今日から外す">✕</button></span></li>`).join("") : "";
+  const spillHtml = spill.length ? `<li class="tend"><span></span><span class="tm">⏸</span><span>今日は入らない（期限が先・終業までに収まらない） ${spill.length}件</span></li>` + spill.map(t => `<li class="spill" data-id="${t.id}" title="${esc(t.title)}"><span class="chk" data-done="1" title="完了にする"></span><span class="tm">—</span><span class="nm">${esc(t.title)}${t.due ? `<span class="dd">📅 ${fmtDue(t.due)}</span>` : ""}${(t.tags || []).length ? `<span class="tg">${sortTags(t.tags).map(g => tagChip(g)).join("")}</span>` : ""}</span><span class="du">${fmtMin(t.est || DEFAULT_EST)}${t.est ? "" : "?"}</span><span class="ctl"><button data-open="1" class="openbtn" title="詳細を開く">詳細</button><button data-drop="1" title="今日から外す">✕</button></span></li>`).join("") : "";
   const endAt = placed.length ? cur - gap : cur; // 最後のタスクの後ろの余白は終了時刻に含めない
   if (!nowInserted && placed.length && nowMin >= wstart && nowMin < wend) html += `<li class="nowline"><span></span><span class="tm">${fmtHM(nowMin)}</span><span class="ln"></span></li>`;
   html += `<li class="tend"><span></span><span class="tm">${fmtHM(Math.min(endAt, 1439))}</span><span>${endAt > wend ? "終業 " + fmtHM(wend) + " を超過" : "終了予定（終業 " + fmtHM(wend) + "）"}</span></li>` + spillHtml;
