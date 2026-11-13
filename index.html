@@ -446,7 +446,9 @@
     <div class="cfg-head"><button class="ibtn back" id="cfg-close" type="button" title="戻る">‹</button>設定</div>
     <div class="cfg-body"><div class="cfg-inner">
     <h3>GitHub 同期</h3>
-    <label>Private リポジトリにタスクを保存します。各端末でトークンを1回入れるだけで同期が始まります（Fine-grained トークン: Repository access に Hayahide-Log、Contents を Read and write）。</label>
+    <label>2台目以降の端末やホーム画面アプリは、Shiden Vault で発行した接続コード（合言葉）を入れるだけで接続できます。</label>
+    <div style="display:flex; gap:8px; margin-bottom:14px"><input id="cfg-code" placeholder="接続コード（合言葉）" autocapitalize="characters" autocorrect="off" autocomplete="off" spellcheck="false" style="flex:1; min-width:0"><button class="btn" id="cfg-code-go" type="button" style="flex:none">接続</button></div>
+    <label>または手入力: Private リポジトリにタスクを保存します。各端末でトークンを1回入れるだけで同期が始まります（Fine-grained トークン: Repository access に Hayahide-Log、Contents を Read and write）。</label>
     <div class="cfg-grid">
       <input id="cfg-owner" placeholder="owner" value="hayahide-cloud" autocapitalize="off" autocorrect="off">
       <input id="cfg-repo" placeholder="repo" value="Hayahide-Log" autocapitalize="off" autocorrect="off">
@@ -1598,20 +1600,86 @@ async function syncOnce(c) {
   await ghPut(c, merged, remote.sha);
   return changed;
 }
+/* ---------- 紫電 接続コード（Shiden Vault の合言葉で自動接続） ----------
+   Shiden Vault が接続情報（owner / repo / branch / token）を合言葉で暗号化
+   （PBKDF2 → AES-256-GCM）して公開ページ Shiden-Vault/connect.json に置く。
+   設定欄に合言葉を入れると取り込み、合言葉は同一オリジン共有キー
+   "shiden_connect_code" に保存する（同じブラウザの他の紫電アプリも自動で使える）。
+   同期が 401/403 で失敗したら合言葉で取り直し、Vault 側でトークンを
+   更新・再発行していれば自動で新しいトークンに切り替わる。
+   Vault の「この端末に書き込む」が置く共有キー "shiden_hub_connection" と、
+   #shiden-connect=<base64url JSON> 付きリンクからの取り込みにも対応する。 */
+const CONNECT_URL = "https://hayahide-cloud.github.io/Shiden-Vault/connect.json", CODE_KEY = "shiden_connect_code";
+const normCode = s => String(s || "").normalize("NFKC").replace(/[\s\-ー－_]/g, "").toUpperCase();
+async function fetchConnect(code) {
+  const r = await fetch(CONNECT_URL + "?t=" + Date.now(), { cache: "no-store" });
+  if (r.status === 404) throw new Error("接続コードがまだ発行されていません");
+  if (!r.ok) throw new Error("接続コードの取得に失敗しました（" + r.status + "）");
+  const f = await r.json();
+  if (f.revoked) throw new Error("接続コードは無効化されています");
+  if (f.format !== "shiden-connect" || !f.kdf) throw new Error("接続ファイルの形式が不正です");
+  const u8 = b => Uint8Array.from(atob(b), ch => ch.charCodeAt(0));
+  const base = await crypto.subtle.importKey("raw", new TextEncoder().encode(normCode(code)), "PBKDF2", false, ["deriveKey"]);
+  const key = await crypto.subtle.deriveKey({ name: "PBKDF2", salt: u8(f.kdf.salt), iterations: f.kdf.iter, hash: "SHA-256" }, base, { name: "AES-GCM", length: 256 }, false, ["decrypt"]);
+  let pt;
+  try { pt = await crypto.subtle.decrypt({ name: "AES-GCM", iv: u8(f.iv) }, key, u8(f.ct)); }
+  catch (e) { throw new Error("接続コード（合言葉）が違います"); }
+  return JSON.parse(new TextDecoder().decode(pt));
+}
+// 合言葉で接続情報を取り込む。設定（トークン等）が変わったら true
+async function applyConnectCode(code) {
+  const hub = await fetchConnect(code);
+  if (!hub.token || !hub.owner || !hub.repo) throw new Error("接続情報が不完全です");
+  const c = getCfg(), changed = c.token !== hub.token || c.owner !== hub.owner || c.repo !== hub.repo || (c.branch || "main") !== (hub.branch || "main");
+  setCfg(Object.assign({}, c, { owner: hub.owner, repo: hub.repo, branch: hub.branch || "main", token: hub.token, path: c.path || "tasks.json" }));
+  try { localStorage.setItem(CODE_KEY, normCode(code)); } catch (e) {}
+  return changed;
+}
+// 保存済みの合言葉で取り直す（失敗・変化なしは false）
+async function recoverByCode() {
+  let code = ""; try { code = localStorage.getItem(CODE_KEY) || ""; } catch (e) {}
+  if (!code) return false;
+  try { return await applyConnectCode(code); } catch (e) { return false; }
+}
+// Vault の共有キー／リンクからの取り込み（自分の設定が無いときだけ。リンクは明示操作なので更新）
+function adoptHubConnection() {
+  const HUB_KEY = "shiden_hub_connection";
+  const m = location.hash.match(/[#&]shiden-connect=([A-Za-z0-9_-]+)/);
+  let hub = null;
+  if (m) {
+    try { hub = JSON.parse(b64dec(m[1].replace(/-/g, "+").replace(/_/g, "/"))); } catch (e) {}
+    history.replaceState(null, "", location.pathname + location.search);
+    if (hub && hub.token) { try { localStorage.setItem(HUB_KEY, JSON.stringify(hub)); } catch (e) {} }
+  }
+  if (!hub) { try { hub = JSON.parse(localStorage.getItem(HUB_KEY)); } catch (e) {} }
+  if (!hub || !hub.token || !hub.owner || !hub.repo) return false;
+  const c = getCfg();
+  if (cfgOk(c) && !m) return false;
+  setCfg(Object.assign({}, c, { owner: hub.owner, repo: hub.repo, branch: hub.branch || "main", token: hub.token, path: c.path || "tasks.json" }));
+  return true;
+}
+
 let syncing = false, syncTimer = null, syncPending = false;
 async function sync() {
   const c = getCfg();
   if (!cfgOk(c)) { status("未同期（ローカルのみ）"); return; }
   if (syncing) { syncPending = true; return; } // 同期中の変更は捨てず、終わったらもう一度回す
   syncing = true; status("同期中…");
+  let retry = false;
   try {
     let done = false, lastErr, changed = false;
     for (let i = 0; i < 5 && !done; i++) { try { changed = await syncOnce(c); done = true; } catch (e) { lastErr = e; if (!/\b409\b/.test(e.message)) throw e; } }
     if (!done) throw lastErr;
     if (changed) render(); // 自分の操作だけなら画面はもう最新なので描画し直さない（操作中のもたつき防止）
     status("同期完了 " + hhmm());
-  } catch (e) { status("同期失敗: " + e.message); }
-  finally { syncing = false; if (syncPending) { syncPending = false; scheduleSync(); } }
+  } catch (e) {
+    // トークン失効（401/403）なら接続コードで新しいトークンを取り直して1回だけ再試行
+    if (/\b40[13]\b/.test(e.message) && !sync.recovering) { sync.recovering = true; retry = await recoverByCode(); }
+    if (!retry) status("同期失敗: " + e.message);
+  }
+  finally { syncing = false; if (!retry && syncPending) { syncPending = false; scheduleSync(); } }
+  if (retry) { status("接続コードから新しいトークンを取得しました"); await sync(); }
+  sync.recovering = false;
 }
 // 操作が止まってから同期する（連続操作中は待つ）。最長でも SYNC_MAX_WAIT 以内には送る
 const SYNC_IDLE = 6000, SYNC_MAX_WAIT = 30000;
@@ -1659,6 +1727,13 @@ document.getElementById("cfg-save").addEventListener("click", () => {
 });
 document.getElementById("cfg-clear").addEventListener("click", () => { localStorage.removeItem(CFG_KEY); fillCfg(); render(); status("設定を削除しました"); });
 document.getElementById("gh-sync").addEventListener("click", sync);
+document.getElementById("cfg-code-go").addEventListener("click", async () => {
+  const code = document.getElementById("cfg-code").value;
+  if (!normCode(code)) return;
+  status("接続コードを確認中…");
+  try { await applyConnectCode(code); document.getElementById("cfg-code").value = ""; fillCfg(); panel.classList.remove("open"); render(); sync(); }
+  catch (e) { status(e.message); alert(e.message); }
+});
 
 /* ---- スマホ: 左端から右へのスワイプで一つ前の画面へ戻る（指に追従し、幅の1/3を超えたら確定） ---- */
 (function () {
@@ -1730,7 +1805,11 @@ document.getElementById("gh-sync").addEventListener("click", sync);
 // PCは「今日の予定」を開いた状態で起動。スマホはリスト一覧（ホーム）から
 mobileScreen = "list"; // リスト分け廃止のため、スマホも最初からタスク一覧
 render();
-if (cfgOk(getCfg())) { status("設定済み"); sync(); } else { status("未同期（ローカルのみ）。⚙️ 設定から同期とAIを有効化"); }
+(async () => {
+  if (adoptHubConnection()) status("Shiden Vault の接続情報を取り込みました");
+  else if (!cfgOk(getCfg()) && await recoverByCode()) status("接続コードで接続しました");
+  if (cfgOk(getCfg())) { status("設定済み"); render(); sync(); } else { status("未同期（ローカルのみ）。⚙️ 設定から同期とAIを有効化"); }
+})();
 </script>
 </body>
 </html>
